@@ -5,6 +5,11 @@ IoT 組（Mars、Tim、Kelly）。用 Tableau 對工廠 IoT 設備感測資料�
 - 報告對象：工廠設備維運主管（想知道哪些設備有風險、電耗在哪裡）
 - 目標：11/13（五）全部完成，11/14–11/15 只做預備修補
 
+## 文件連結
+
+- 報告與說明（HackMD）：https://hackmd.io/@Yihsuanchen1/SJljDOTTfg/https%3A%2F%2Fhackmd.io%2FCkvrlWlvTF2aL6aYtM8VPw%2Fpublish
+- 簡報：（之後補）
+
 ## 資料來源
 
 | 項目 | 內容 |
