@@ -8,7 +8,7 @@ IoT 組（Mars、Tim、Kelly）。用 Tableau 對工廠 IoT 設備感測資料�
 ## 文件連結
 
 - 報告與說明（HackMD）：https://hackmd.io/@Yihsuanchen1/SJljDOTTfg/https%3A%2F%2Fhackmd.io%2FCkvrlWlvTF2aL6aYtM8VPw%2Fpublish
-- 簡報：（之後補）
+- 簡報（Gamma）：https://gamma.app/docs/IoT-29--v4mdquwjqyodgdx
 
 ## 資料來源
 
@@ -133,3 +133,4 @@ git push
 - [ ] 報告分配段落
 - [ ] 11/14晚上模擬報告
 - [ ] 繳交日期與繳交方式（HackMD／簡報／Gamma）
+- [ ] 主檔 `備用_能耗平均每筆`：欄位仍為「總和」，需改為「平均值」（欄上右鍵 →「度量」→「平均值」）。此表為備用圖，不影響儀表板與故事
