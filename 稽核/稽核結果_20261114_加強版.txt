@@ -1,0 +1,219 @@
+資料來源：antdata_iot_sensor_logs_20261112_001823.csv
+
+=== 第 1 題：資料量、缺值、設備與廠區 ===
+[PASS] 總筆數: 原值=92250; 比對值=92250; 預期=92250
+[PASS] 設備總數: 原值=45; 比對值=45; 預期=45
+[PASS] 設備類型集合: 原值={'pressure_gauge', 'temperature_sensor', 'motor'}; 比對值={'pressure_gauge', 'temperature_sensor', 'motor'}; 預期={'pressure_gauge', 'temperature_sensor', 'motor'}
+[PASS] motor 台數: 原值=10; 比對值=10; 預期=10
+[PASS] motor 筆數: 原值=20500; 比對值=20500; 預期=20500
+[PASS] pressure_gauge 台數: 原值=15; 比對值=15; 預期=15
+[PASS] pressure_gauge 筆數: 原值=30750; 比對值=30750; 預期=30750
+[PASS] temperature_sensor 台數: 原值=20; 比對值=20; 預期=20
+[PASS] temperature_sensor 筆數: 原值=41000; 比對值=41000; 預期=41000
+[PASS] 每台剛好 2050 筆: 原值=True; 比對值=True; 預期=True
+[PASS] 每個 device_id 只屬於一種設備類型: 原值=True; 比對值=True; 預期=True
+[PASS] log_id 無缺值且唯一: 原值=True; 比對值=True; 預期=True
+[PASS] pressure 缺值: 原值=61500; 比對值=61500; 預期=61500
+[PASS] pressure 有值若且唯若為壓力計: 原值=True; 比對值=True; 預期=True
+[PASS] vibration_level 缺值: 原值=41000; 比對值=41000; 預期=41000
+[PASS] 震動缺值若且唯若為溫度感測器: 原值=True; 比對值=True; 預期=True
+[PASS] timestamp 缺值: 原值=0; 比對值=0; 預期=0
+[PASS] factory_zone 缺值: 原值=0; 比對值=0; 預期=0
+[PASS] power_consumption 缺值: 原值=0; 比對值=0; 預期=0
+[PASS] log_id 缺值: 原值=0; 比對值=0; 預期=0
+[PASS] device_type 缺值: 原值=0; 比對值=0; 預期=0
+[PASS] temperature 缺值: 原值=0; 比對值=0; 預期=0
+[PASS] device_id 缺值: 原值=0; 比對值=0; 預期=0
+[PASS] status 缺值: 原值=0; 比對值=0; 預期=0
+[PASS] 每廠區只對應一種設備類型: 原值=True; 比對值=True; 預期=True
+device_type   motor  pressure_gauge  temperature_sensor
+factory_zone                                           
+A區                0               0               10238
+B區                0               0               10300
+C區                0               0               10143
+D區                0               0               10319
+加工區               0           10071                   0
+測試區               0           10286                   0
+生產線1           6883               0                   0
+生產線2           6856               0                   0
+生產線3           6761               0                   0
+組裝區               0           10393                   0
+
+=== 第 2 題：異常比例（分母包含該群組全部列）===
+[PASS] status 只有四種已知值: 原值={'normal', 'warning', 'offline', 'error'}; 比對值={'normal', 'warning', 'offline', 'error'}; 預期={'normal', 'warning', 'offline', 'error'}
+[PASS] normal 筆數: 原值=87354; 比對值=87354; 預期=87354
+[PASS] normal %（分子=87354, 分母=92250）: 原值=94.69268292682926; 比對值=94.7; 預期=94.7
+[PASS] offline 筆數: 原值=1801; 比對值=1801; 預期=1801
+[PASS] offline %（分子=1801, 分母=92250）: 原值=1.9523035230352304; 比對值=2.0; 預期=2.0
+[PASS] warning 筆數: 原值=1764; 比對值=1764; 預期=1764
+[PASS] warning %（分子=1764, 分母=92250）: 原值=1.9121951219512194; 比對值=1.9; 預期=1.9
+[PASS] error 筆數: 原值=1331; 比對值=1331; 預期=1331
+[PASS] error %（分子=1331, 分母=92250）: 原值=1.4428184281842817; 比對值=1.4; 預期=1.4
+[PASS] motor 非 normal %（分子=945, 分母=20500）: 原值=4.609756097560975; 比對值=4.61; 預期=4.61
+[PASS] pressure_gauge 非 normal %（分子=1691, 分母=30750）: 原值=5.4991869918699186; 比對值=5.50; 預期=5.5
+[PASS] temperature_sensor 非 normal %（分子=2260, 分母=41000）: 原值=5.512195121951219; 比對值=5.51; 預期=5.51
+[PASS] 馬達 error %（分子=385, 分母=20500）: 原值=1.8780487804878048; 比對值=1.88; 預期=1.88
+[PASS] 馬達 warning %（分子=154, 分母=20500）: 原值=0.751219512195122; 比對值=0.75; 預期=0.75
+[PASS] 異常並列最高的設備集合: 原值={'TEM020', 'PRE012'}; 比對值={'TEM020', 'PRE012'}; 預期={'TEM020', 'PRE012'}
+[PASS] 異常最高筆數: 原值=132; 比對值=132; 預期=132
+[PASS] 每台平均異常筆數（包含 0 異常設備）: 原值=108.8; 比對值=109; 預期=109
+device_id
+TEM020    132
+PRE012    132
+TEM002    130
+PRE011    130
+TEM007    128
+TEM014    123
+PRE008    123
+TEM015    122
+TEM003    122
+TEM001    122
+
+=== 第 3 題：能耗分布 ===
+                     size  count         sum       mean
+device_type                                            
+motor               20500  20500  563679.940  27.496582
+pressure_gauge      30750  30750   15313.456   0.497999
+temperature_sensor  41000  41000   12298.566   0.299965
+[PASS] 馬達總耗電占全體 %（分子=563679.94, 分母=591291.9619999999）: 原值=95.33022199276911; 比對值=95.3; 預期=95.3
+[PASS] 馬達每筆平均耗電: 原值=27.496582439024387; 比對值=27.5; 預期=27.5
+[PASS] 馬達平均耗電 / pressure_gauge 平均耗電: 原值=55.21417960779068; 比對值=55; 預期=55
+[PASS] 馬達平均耗電 / temperature_sensor 平均耗電: 原值=91.66596170642983; 比對值=92; 預期=92
+設備耗電前 10 名：
+device_id  device_type
+MOT007     motor          56929.116
+MOT004     motor          56919.392
+MOT009     motor          56678.531
+MOT010     motor          56600.286
+MOT002     motor          56373.465
+MOT003     motor          56268.995
+MOT006     motor          56245.277
+MOT008     motor          56171.426
+MOT005     motor          55928.219
+MOT001     motor          55565.233
+[PASS] 前 10 名皆為馬達: 原值={'motor'}; 比對值={'motor'}; 預期={'motor'}
+[PASS] 最高耗電設備（含並列）: 原值={'MOT007'}; 比對值={'MOT007'}; 預期={'MOT007'}
+[PASS] 第 10 名設備: 原值=MOT001; 比對值=MOT001; 預期=MOT001
+[PASS] MOT007 耗電（整數顯示）: 原值=56929.116; 比對值=56929; 預期=56929
+[PASS] MOT001 耗電（整數顯示）: 原值=55565.233; 比對值=55565; 預期=55565
+[PASS] 最高較第 10 名高出（以第 10 名為分母） %（分子=1363.8830000000016, 分母=55565.233）: 原值=2.454561830056578; 比對值=2.5; 預期=2.5
+以所有馬達紀錄按小時直接平均：
+      size  count       mean
+hour                        
+0      876    876  27.048080
+1      911    911  27.908855
+2      912    912  28.001583
+3      898    898  27.688159
+4      853    853  28.097904
+5      880    880  27.825861
+6      889    889  28.296516
+7      916    916  27.466118
+8      823    823  27.701645
+9      887    887  27.517983
+10     865    865  26.722442
+11     875    875  26.892845
+12     859    859  26.289341
+13     810    810  28.221285
+14     843    843  26.665759
+15     860    860  26.844699
+16     843    843  27.336498
+17     812    812  27.309583
+18     818    818  28.019543
+19     861    861  27.497072
+20     802    802  27.811648
+21     818    818  27.980087
+22     812    812  27.373167
+23     777    777  27.407221
+[PASS] 24 小時都有紀錄: 原值=True; 比對值=True; 預期=True
+[PASS] 最高平均耗電時段（含並列）: 原值={6}; 比對值={6}; 預期={6}
+[PASS] 最低平均耗電時段（含並列）: 原值={12}; 比對值={12}; 預期={12}
+[PASS] 最高小時平均: 原值=28.29651631046119; 比對值=28.3; 預期=28.3
+[PASS] 最低小時平均: 原值=26.289341094295693; 比對值=26.3; 預期=26.3
+[INFO] 小時差距 / 最高值 %（分子=2.0071752161654963, 分母=28.29651631046119）: 7.093365
+[INFO] 小時差距 / 最低值 %（分子=2.0071752161654963, 分母=26.289341094295693）: 7.634939
+
+=== 第 4 題：溫度、震動門檻 ===
+[PASS] 馬達 >80°C 筆數: 原值=408; 比對值=408; 預期=408
+[PASS] 過熱占全部馬達紀錄 %（分子=408, 分母=20500）: 原值=1.9902439024390244; 比對值=2.0; 預期=2.0
+[PASS] 馬達 >100°C 筆數: 原值=55; 比對值=55; 預期=55
+[PASS] 馬達最高溫: 原值=109.06; 比對值=109.06; 預期=109.06
+[PASS] 馬達過熱統計涵蓋 10 台: 原值=10; 比對值=10; 預期=10
+[PASS] 每台過熱最少筆數: 原值=31; 比對值=31; 預期=31
+[PASS] 每台過熱最多筆數: 原值=48; 比對值=48; 預期=48
+[PASS] 過熱最多設備（含並列）: 原值={'MOT004'}; 比對值={'MOT004'}; 預期={'MOT004'}
+device_id
+MOT001    31
+MOT002    40
+MOT003    45
+MOT004    48
+MOT005    38
+MOT006    44
+MOT007    39
+MOT008    39
+MOT009    43
+MOT010    41
+[PASS] 全資料不同日期數: 原值=29; 比對值=29; 預期=29
+[PASS] 每天都有馬達過熱（日期集合相等）: 原值={datetime.date(2025, 1, 1), datetime.date(2025, 1, 2), datetime.date(2025, 1, 28), datetime.date(2025, 1, 12), datetime.date(2025, 1, 22), datetime.date(2025, 1, 20), datetime.date(2025, 1, 6), datetime.date(2025, 1, 11), datetime.date(2025, 1, 17), datetime.date(2025, 1, 7), datetime.date(2025, 1, 5), datetime.date(2025, 1, 13), datetime.date(2025, 1, 18), datetime.date(2025, 1, 14), datetime.date(2025, 1, 25), datetime.date(2025, 1, 16), datetime.date(2025, 1, 26), datetime.date(2025, 1, 15), datetime.date(2025, 1, 3), datetime.date(2025, 1, 19), datetime.date(2025, 1, 4), datetime.date(2025, 1, 10), datetime.date(2025, 1, 8), datetime.date(2025, 1, 27), datetime.date(2025, 1, 29), datetime.date(2025, 1, 21), datetime.date(2025, 1, 24), datetime.date(2025, 1, 9), datetime.date(2025, 1, 23)}; 比對值={datetime.date(2025, 1, 1), datetime.date(2025, 1, 2), datetime.date(2025, 1, 28), datetime.date(2025, 1, 12), datetime.date(2025, 1, 22), datetime.date(2025, 1, 20), datetime.date(2025, 1, 6), datetime.date(2025, 1, 11), datetime.date(2025, 1, 17), datetime.date(2025, 1, 7), datetime.date(2025, 1, 5), datetime.date(2025, 1, 13), datetime.date(2025, 1, 18), datetime.date(2025, 1, 14), datetime.date(2025, 1, 25), datetime.date(2025, 1, 16), datetime.date(2025, 1, 26), datetime.date(2025, 1, 15), datetime.date(2025, 1, 3), datetime.date(2025, 1, 19), datetime.date(2025, 1, 4), datetime.date(2025, 1, 10), datetime.date(2025, 1, 8), datetime.date(2025, 1, 27), datetime.date(2025, 1, 29), datetime.date(2025, 1, 21), datetime.date(2025, 1, 24), datetime.date(2025, 1, 9), datetime.date(2025, 1, 23)}; 預期={datetime.date(2025, 1, 1), datetime.date(2025, 1, 2), datetime.date(2025, 1, 28), datetime.date(2025, 1, 9), datetime.date(2025, 1, 22), datetime.date(2025, 1, 20), datetime.date(2025, 1, 6), datetime.date(2025, 1, 11), datetime.date(2025, 1, 17), datetime.date(2025, 1, 7), datetime.date(2025, 1, 5), datetime.date(2025, 1, 13), datetime.date(2025, 1, 18), datetime.date(2025, 1, 14), datetime.date(2025, 1, 25), datetime.date(2025, 1, 16), datetime.date(2025, 1, 26), datetime.date(2025, 1, 15), datetime.date(2025, 1, 3), datetime.date(2025, 1, 19), datetime.date(2025, 1, 4), datetime.date(2025, 1, 10), datetime.date(2025, 1, 8), datetime.date(2025, 1, 27), datetime.date(2025, 1, 29), datetime.date(2025, 1, 21), datetime.date(2025, 1, 24), datetime.date(2025, 1, 12), datetime.date(2025, 1, 23)}
+[PASS] 全資料日期連續、無缺日: 原值={datetime.date(2025, 1, 1), datetime.date(2025, 1, 2), datetime.date(2025, 1, 28), datetime.date(2025, 1, 9), datetime.date(2025, 1, 22), datetime.date(2025, 1, 20), datetime.date(2025, 1, 6), datetime.date(2025, 1, 11), datetime.date(2025, 1, 17), datetime.date(2025, 1, 7), datetime.date(2025, 1, 5), datetime.date(2025, 1, 13), datetime.date(2025, 1, 18), datetime.date(2025, 1, 14), datetime.date(2025, 1, 25), datetime.date(2025, 1, 16), datetime.date(2025, 1, 26), datetime.date(2025, 1, 15), datetime.date(2025, 1, 3), datetime.date(2025, 1, 19), datetime.date(2025, 1, 4), datetime.date(2025, 1, 10), datetime.date(2025, 1, 8), datetime.date(2025, 1, 27), datetime.date(2025, 1, 29), datetime.date(2025, 1, 21), datetime.date(2025, 1, 24), datetime.date(2025, 1, 12), datetime.date(2025, 1, 23)}; 比對值={datetime.date(2025, 1, 1), datetime.date(2025, 1, 2), datetime.date(2025, 1, 28), datetime.date(2025, 1, 9), datetime.date(2025, 1, 22), datetime.date(2025, 1, 20), datetime.date(2025, 1, 6), datetime.date(2025, 1, 11), datetime.date(2025, 1, 17), datetime.date(2025, 1, 7), datetime.date(2025, 1, 5), datetime.date(2025, 1, 13), datetime.date(2025, 1, 18), datetime.date(2025, 1, 14), datetime.date(2025, 1, 25), datetime.date(2025, 1, 16), datetime.date(2025, 1, 26), datetime.date(2025, 1, 15), datetime.date(2025, 1, 3), datetime.date(2025, 1, 19), datetime.date(2025, 1, 4), datetime.date(2025, 1, 10), datetime.date(2025, 1, 8), datetime.date(2025, 1, 27), datetime.date(2025, 1, 29), datetime.date(2025, 1, 21), datetime.date(2025, 1, 24), datetime.date(2025, 1, 12), datetime.date(2025, 1, 23)}; 預期={datetime.date(2025, 1, 2), datetime.date(2025, 1, 1), datetime.date(2025, 1, 28), datetime.date(2025, 1, 9), datetime.date(2025, 1, 22), datetime.date(2025, 1, 20), datetime.date(2025, 1, 6), datetime.date(2025, 1, 11), datetime.date(2025, 1, 17), datetime.date(2025, 1, 7), datetime.date(2025, 1, 5), datetime.date(2025, 1, 13), datetime.date(2025, 1, 18), datetime.date(2025, 1, 14), datetime.date(2025, 1, 25), datetime.date(2025, 1, 16), datetime.date(2025, 1, 26), datetime.date(2025, 1, 15), datetime.date(2025, 1, 3), datetime.date(2025, 1, 19), datetime.date(2025, 1, 4), datetime.date(2025, 1, 10), datetime.date(2025, 1, 8), datetime.date(2025, 1, 27), datetime.date(2025, 1, 29), datetime.date(2025, 1, 21), datetime.date(2025, 1, 24), datetime.date(2025, 1, 12), datetime.date(2025, 1, 23)}
+[PASS] 壓力計總筆數: 原值=30750; 比對值=30750; 預期=30750
+[PASS] 壓力計震動 >=15 筆數: 原值=130; 比對值=130; 預期=130
+[PASS] 高震動且 error: 原值=128; 比對值=128; 預期=128
+[PASS] 高震動中的 error %（分子=128, 分母=130）: 原值=98.46153846153847; 比對值=98.46; 預期=98.46
+[PASS] 高震動且 normal: 原值=0; 比對值=0; 預期=0
+[PASS] 低中震動 error 不是空集合: 原值=True; 比對值=True; 預期=True
+[PASS] 低中震動 error 溫度皆非缺值且 >55°C: 原值=True; 比對值=True; 預期=True
+低中震動 error: 279 筆；最低溫=55.01
+高震動狀態分布：
+status
+error      128
+offline      2
+
+=== 第 5 題：雙向交叉稽核 ===
+[PASS] 馬達 error 筆數（1.88% 所對應的約 385 筆）: 原值=385; 比對值=385; 預期=385
+
+馬達：temperature >80°C: error=385; 門檻命中=408
+           error  非 error（含未知狀態）
+達門檻           63             345
+未達門檻（含缺值）    322           19770
+[INFO] error 中達門檻（涵蓋率） %（分子=63, 分母=385）: 16.363636
+[INFO] 達門檻中為 error（精確率） %（分子=63, 分母=408）: 15.441176
+[INFO] 交集 / 聯集（Jaccard） %（分子=63, 分母=730）: 8.630137
+達門檻狀態： {'normal': 185, 'warning': 154, 'error': 63, 'offline': 6}
+error 未達門檻的前 10 筆：
+ log_id device_id  temperature  vibration_level status
+   1756    MOT001        55.82            16.32  error
+   1774    MOT001        68.53            16.73  error
+   1841    MOT002        59.42            23.22  error
+   1949    MOT004        79.85            20.13  error
+   1952    MOT005        40.63            16.12  error
+   2012    MOT006        56.22            15.65  error
+   2013    MOT006        41.01            19.32  error
+   2115    MOT008        63.50            22.29  error
+  19908    MOT001        33.61            16.58  error
+  19956    MOT001        79.41            21.24  error
+
+壓力計：vibration_level >=15: error=407; 門檻命中=130
+           error  非 error（含未知狀態）
+達門檻          128               2
+未達門檻（含缺值）    279           30341
+[INFO] error 中達門檻（涵蓋率） %（分子=128, 分母=407）: 31.449631
+[INFO] 達門檻中為 error（精確率） %（分子=128, 分母=130）: 98.461538
+[INFO] 交集 / 聯集（Jaccard） %（分子=128, 分母=409）: 31.295844
+達門檻狀態： {'error': 128, 'offline': 2}
+error 未達門檻的前 10 筆：
+ log_id device_id  temperature  vibration_level status
+   1399    PRE008        60.83             0.16  error
+   1588    PRE012        60.32             1.93  error
+  12858    PRE002        57.32             0.83  error
+  12926    PRE002        55.92             1.46  error
+  12952    PRE002        56.54             1.83  error
+  13025    PRE002        59.15             1.51  error
+  13030    PRE002        61.75             0.79  error
+  13053    PRE002        62.77             0.93  error
+  13125    PRE002        61.99             0.11  error
+  13212    PRE002        59.45             0.97  error
+[INFO] 壓力計 error 中，高震動或溫度 >55°C 的涵蓋率 %（分子=407, 分母=407）: 100.000000
+
+判讀：精確率與涵蓋率須分開。優先監測門檻可有資料支持，但只有 error 未達門檻與達門檻非 error 都為 0，才可宣稱門檻與 error 完全等價。交叉表是描述性關聯，不能單憑它證明因果或完整故障規則。
+
+總結：PASS=76；FAIL=0；共 76 項。
