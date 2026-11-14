@@ -1,6 +1,7 @@
 # IoT 設備感測資料分析｜Tableau 分組作業
 
-IoT 組（Mars、Tim、Kelly）。用 Tableau 對工廠 IoT 設備感測資料做**描述性分析**，整合成儀表板，**11/16（一）早上課堂發表**。
+Team member:Mars、Tim、Kelly
+用 Tableau 對工廠 IoT 設備感測資料做**描述性分析**，整合成儀表板，**11/16（一）早上課堂發表**。
 
 - 報告對象：工廠設備維運主管（想知道哪些設備有風險、電耗在哪裡）
 - 目標：11/13（五）全部完成，11/14–11/15 只做模擬演練、預備日
@@ -9,6 +10,7 @@ IoT 組（Mars、Tim、Kelly）。用 Tableau 對工廠 IoT 設備感測資料�
 
 - 報告與說明（HackMD）：https://hackmd.io/@Yihsuanchen1/SJljDOTTfg/https%3A%2F%2Fhackmd.io%2FCkvrlWlvTF2aL6aYtM8VPw%2Fpublish
 - 簡報（Gamma）：https://gamma.app/docs/IoT-29--v4mdquwjqyodgdx
+- 一頁式互動網頁:https://claude.ai/artifact/BytQ3q7obG6KAB6MapnCkN
 
 ## 資料來源
 
@@ -134,7 +136,7 @@ iot-tableau-group/
 8. 本 repo 為 private，繳交前再決定是否公開。
 9. 定稿文件用檔名標示版本：`檔名_V1`、`檔名_V2`……；改版時另存新版本，不覆蓋舊檔，README 的連結指向最新版。
 
-## 每天的操作
+## 每天的操作(彙整版在做即可)
 
 開始工作前：
 
