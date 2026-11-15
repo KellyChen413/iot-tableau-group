@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IoT 設備健康報告</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="工廠設備 29 天感測資料的描述性分析：異常、能耗、感測值與門檻模擬器。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: 巡檢報告式單頁 — 窄欄閱讀＋寬圖表區；頂部固定導覽，各段以「巡檢項目」編號串起報告順序 */
+:root{
+  --bg:#f5f7f7; --panel:#ffffff; --ink:#15232b; --muted:#5b6b73; --rule:#d9e1e3;
+  --accent:#14595a; --accent-soft:#e3efee;
+  --normal:#4E79A7; --warning:#EDC948; --error:#E15759; --offline:#BAB0AC; --hot:#F28E2B;
+  --motor:#499894; --pg:#B07AA1; --ts:#A0CBE8;
+  --mars:#1F8A8A; --tim:#8E6BB8; --kelly:#D9822B;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1719; --panel:#162226; --ink:#e4ecee; --muted:#9db0b6; --rule:#2a3a3f;
+  --accent:#5cc2bf; --accent-soft:#1c3336; --ts:#7fb3d6; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#0f1719; --panel:#162226; --ink:#e4ecee; --muted:#9db0b6; --rule:#2a3a3f;
+  --accent:#5cc2bf; --accent-soft:#1c3336; --ts:#7fb3d6; color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.7;margin:0}
+a{color:var(--accent)}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.num,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+h1,h2,h3{text-wrap:balance;margin:0;line-height:1.3}
+h2{font-size:clamp(1.5rem,1.2rem + 1.2vw,2.1rem);font-weight:900;letter-spacing:.01em}
+h3{font-size:1.08rem;font-weight:700}
+p{margin:0}
+.muted{color:var(--muted)}
+.eyebrow{font-family:var(--f-mono);font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600}
+
+/* top nav */
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--panel)}
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:color-mix(in srgb,var(--panel) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--rule)}
+.nav .wrap{display:flex;align-items:center;gap:20px;min-height:54px;flex-wrap:wrap}
+.brand{font-weight:900;letter-spacing:.02em;display:flex;align-items:center;gap:10px;white-space:nowrap}
+.lamp{display:inline-flex;gap:4px}.lamp i{width:9px;height:9px;border-radius:50%;display:block}
+.nav ul{list-style:none;display:flex;gap:4px 18px;margin:0 0 0 auto;padding:0;flex-wrap:wrap;font-size:.92rem}
+.nav a{text-decoration:none;color:var(--muted)}.nav a:hover,.nav a:focus-visible{color:var(--accent)}
+
+/* hero */
+.hero{padding-block:56px 40px}
+.hero h1{font-size:clamp(2.1rem,1.4rem + 3vw,3.6rem);font-weight:900;letter-spacing:.01em;margin-top:10px}
+.hero .lede{max-width:44em;font-size:1.12rem;margin-top:16px}
+.hero .lede b{color:var(--accent)}
+.meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:18px;font-size:.9rem;color:var(--muted)}
+.badge{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--accent);color:var(--accent);border-radius:999px;padding:2px 12px;font-weight:700;font-size:.85rem;text-decoration:none}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);margin-top:34px}
+.kpi{background:var(--panel);padding:18px 20px;min-width:0}
+.kpi .v{font-family:var(--f-mono);font-size:clamp(1.6rem,1.2rem + 1.4vw,2.3rem);font-weight:600;line-height:1.1}
+.kpi .k{font-size:.88rem;color:var(--muted);margin-top:6px}
+.kpi .tag{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:1px}
+
+section.block{padding-block:56px;border-top:1px solid var(--rule)}
+.head{display:grid;gap:8px;margin-bottom:26px;max-width:46em}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:20px;min-width:0}
+.panel h3{margin-bottom:4px}
+.sheet{display:inline-block;font-size:.8rem;font-weight:700;color:var(--muted);border:1px solid currentColor;border-radius:4px;padding:0 7px;margin-bottom:6px;letter-spacing:.02em}
+.panel .sub{font-size:.88rem;color:var(--muted)}
+.chart{position:relative;height:260px;margin-top:14px}
+.chart.tall{height:320px}
+.takeaway{margin-top:12px;font-size:.93rem;border-top:1px dashed var(--rule);padding-top:10px}
+.takeaway b{color:var(--accent)}
+
+/* data facts */
+.facts{display:grid;grid-template-columns:auto 1fr;gap:6px 18px;font-size:.95rem}
+.facts dt{color:var(--muted)}.facts dd{margin:0}
+.stackbar{display:flex;height:34px;border-radius:4px;overflow:hidden;margin-top:12px}
+.stackbar span{display:flex;align-items:center;justify-content:center;color:#fff;font-size:.8rem;font-weight:700;min-width:0;white-space:nowrap;overflow:hidden}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.85rem;margin-top:10px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:0}
+.checks{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+.checks li{display:grid;grid-template-columns:22px 1fr;gap:8px;font-size:.95rem}
+.checks li::before{content:"✓";color:var(--accent);font-weight:900}
+
+/* tabs */
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.tab{font:inherit;font-weight:700;border:1px solid var(--rule);background:var(--panel);color:var(--ink);border-radius:999px;padding:7px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.tab .who{font-weight:500;font-size:.82rem;color:var(--muted)}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tab[aria-selected="true"] .who{color:var(--bg);opacity:.75}
+.tab:focus-visible,.chip:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.chip{font:inherit;font-size:.82rem;border:1px solid var(--rule);background:transparent;color:var(--muted);border-radius:999px;padding:2px 10px;cursor:pointer}
+.chip[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:700}
+.q{font-size:.95rem;color:var(--muted);margin-bottom:16px}
+.q b{color:var(--ink)}
+
+/* simulator */
+.sim{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:22px;align-items:start}
+.control{display:grid;gap:10px}
+.control label{font-weight:700}
+.slider-row{display:flex;align-items:center;gap:14px}
+.slider-row input[type=range]{flex:1;accent-color:var(--accent);min-width:0}
+.slider-row output{font-family:var(--f-mono);font-size:1.6rem;font-weight:600;min-width:4.6ch;text-align:right}
+.readout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);margin-top:6px}
+.readout div{background:var(--panel);padding:10px 12px;min-width:0}
+.readout .v{font-family:var(--f-mono);font-size:1.35rem;font-weight:600}
+.readout .k{font-size:.8rem;color:var(--muted)}
+.mix{display:flex;height:14px;border-radius:3px;overflow:hidden;background:var(--rule)}
+.mix span{display:block;height:100%}
+.hint{font-size:.88rem;background:var(--accent-soft);border-radius:4px;padding:8px 12px}
+select{font:inherit;border:1px solid var(--rule);background:var(--panel);color:var(--ink);border-radius:4px;padding:3px 8px}
+.presets{display:flex;gap:6px;flex-wrap:wrap}
+
+/* actions */
+.fields{border-collapse:collapse;width:100%;font-size:.92rem}
+.fields td{padding:3px 10px 3px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.fields td.mono{white-space:nowrap;color:var(--accent)}
+.plan{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:20px}
+.plan .p{border-top:4px solid var(--c);background:var(--panel);border-left:1px solid var(--rule);border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);padding:16px 18px;min-width:0}
+.plan .n{font-weight:700;color:var(--c);font-size:.9rem}
+.plan .qq{font-size:1.1rem;font-weight:700;margin:4px 0 8px}
+.plan .f{font-size:.88rem;color:var(--muted)}
+.acts{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;counter-reset:a}
+.acts li{background:var(--panel);border:1px solid var(--rule);border-left:4px solid var(--c);padding:16px 18px;counter-increment:a;min-width:0}
+.acts li b{display:block;font-size:1.02rem}
+.acts li b::before{content:counter(a) ". ";color:var(--c)}
+.acts .why{display:block;font-size:.88rem;color:var(--muted);margin-top:6px}
+.day .m{display:inline-block;margin-top:4px;font-size:.75rem;font-weight:700;color:var(--accent)}
+.gantt-wrap{overflow-x:auto;margin-top:22px;border:1px solid var(--rule);background:var(--panel)}
+.gantt{display:grid;grid-template-columns:76px repeat(7,minmax(84px,1fr));grid-auto-rows:minmax(34px,auto);min-width:680px;position:relative;padding:8px 12px 12px}
+.g-head{grid-row:1;font-family:var(--f-mono);font-size:.8rem;font-weight:600;text-align:center;padding:6px 0;border-left:1px dashed var(--rule)}
+.g-head small{font-family:var(--f-body);font-weight:400;color:var(--muted)}
+.g-lab{grid-column:1;font-weight:700;font-size:.9rem;display:flex;align-items:center}
+.g-band{grid-column:1/-1;border-top:1px solid var(--rule);z-index:0}
+.g-bar{align-self:center;margin:3px 4px;padding:4px 8px;font-size:.8rem;line-height:1.35;border-radius:4px;background:color-mix(in srgb,var(--c) 18%,var(--panel));border-left:4px solid var(--c);z-index:1;min-width:0}
+.g-meet{align-self:center;justify-self:center;font-size:.78rem;font-weight:700;color:var(--accent);z-index:1;white-space:nowrap}
+.g-goal{border-left:3px solid var(--error);background:color-mix(in srgb,var(--error) 8%,transparent);z-index:0;display:flex;align-items:center;justify-content:center}
+.g-goal span{font-weight:700;color:var(--error);font-size:.9rem;writing-mode:vertical-rl;letter-spacing:.2em}
+.concl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.concl .c{background:var(--panel);border:1px solid var(--rule);border-top:4px solid var(--c);padding:20px 22px;min-width:0;display:flex;flex-direction:column;gap:8px}
+.concl .tagline{font-weight:700;color:var(--c);font-size:.88rem}
+.concl .big{font-family:var(--f-display,var(--f-body));font-size:2.6rem;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
+.concl .hd{font-size:1.12rem;font-weight:700}
+.concl p{margin:0;font-size:.95rem;line-height:1.75}
+.concl .ev{margin-top:auto;padding-top:10px;border-top:1px dashed var(--rule);font-size:.82rem;color:var(--muted)}
+.members{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:14px 0 4px}
+.members .lbl{font-weight:700;color:var(--muted);font-size:.95rem;margin-right:4px}
+.members .m{font-weight:800;font-size:1.05rem;color:var(--c);border:2px solid var(--c);border-radius:999px;padding:2px 14px}
+.tiers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.tier{border-top:4px solid var(--c);background:var(--panel);border-left:1px solid var(--rule);border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);padding:18px 20px;min-width:0}
+.tier .when{font-family:var(--f-mono);font-weight:600;color:var(--c);font-size:.85rem;letter-spacing:.08em}
+.tier ul{margin:10px 0 0;padding-left:1.1em;display:grid;gap:8px}
+.tier .why{display:block;font-size:.85rem;color:var(--muted)}
+.note{margin-top:16px;font-size:.92rem;color:var(--muted)}
+
+/* team */
+.team{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.person{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:18px 20px;min-width:0}
+.person .name{font-weight:900;font-size:1.2rem;color:var(--c)}
+.person .role{font-size:.9rem;color:var(--muted)}
+.person ul{margin:10px 0 0;padding-left:1.1em;font-size:.93rem}
+.person .time{font-family:var(--f-mono);font-size:.85rem;margin-top:10px;color:var(--c);font-weight:600}
+.timeline{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-top:22px;overflow-x:auto}
+.day{background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:8px 10px;font-size:.82rem;min-width:110px}
+.day .d{font-family:var(--f-mono);font-weight:600}
+.day.done{border-color:var(--accent)}
+.day.goal{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.links{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
+.links a{border:1px solid var(--rule);background:var(--panel);border-radius:4px;padding:8px 14px;text-decoration:none;color:var(--ink);font-weight:500}
+.links a:hover,.links a:focus-visible{border-color:var(--accent);color:var(--accent)}
+footer{border-top:1px solid var(--rule);padding-block:28px 40px;font-size:.85rem;color:var(--muted)}
+
+@media (max-width:860px){
+  .grid3,.tiers,.team,.plan,.acts,.concl{grid-template-columns:1fr}
+  .grid2,.sim{grid-template-columns:1fr}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .nav ul{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<nav class="nav" aria-label="頁面導覽">
+  <div class="wrap">
+    <div class="brand"><span class="lamp" aria-hidden="true"><i style="background:var(--normal)"></i><i style="background:var(--warning)"></i><i style="background:var(--error)"></i></span>IoT 組｜設備健康報告</div>
+    <ul>
+      <li><a href="#data">資料</a></li>
+      <li><a href="#plan">規劃</a></li>
+      <li><a href="#analysis">分析</a></li>
+      <li><a href="#simulator">門檻模擬器</a></li>
+      <li><a href="#conclusion">結論</a></li>
+      <li><a href="#actions">建議</a></li>
+      <li><a href="#team">團隊</a></li>
+    </ul>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">給工廠設備維運主管的 29 天巡檢報告</p>
+    <h1>IoT 設備健康報告</h1>
+    <p class="lede">45 台設備、92,250 筆感測紀錄。設備整體健康，但有兩個訊號值得盯：<b>馬達溫度超過 80°C</b> 與 <b>震動達到 15</b>；而耗電有 <b>95%</b> 集中在馬達。</p>
+    <p class="members"><span class="lbl">IoT 組｜Team member</span><span class="m" style="--c:var(--mars)">Mars</span><span class="m" style="--c:var(--tim)">Tim</span><span class="m" style="--c:var(--kelly)">Kelly</span></p>
+    <div class="meta">
+      <span>資料期間 2025/01/01–01/29</span><span>分析工具 Tableau</span>
+      <a class="badge" href="#audit">✓ 兩次獨立稽核全部通過</a>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="v" id="kpi-n">92,250</div><div class="k">筆感測紀錄（45 台設備）</div></div>
+      <div class="kpi"><div class="v" id="kpi-normal">94.7%</div><div class="k"><span class="tag" style="background:var(--normal)"></span>紀錄為正常（normal）</div></div>
+      <div class="kpi"><div class="v" id="kpi-power">95.3%</div><div class="k"><span class="tag" style="background:var(--motor)"></span>耗電集中在 10 台馬達</div></div>
+      <div class="kpi"><div class="v" id="kpi-vib">98.5%</div><div class="k"><span class="tag" style="background:var(--error)"></span>壓力計震動 ≥ 15 時為 error</div></div>
+    </div>
+  </div>
+</header>
+
+<main>
+<section class="block" id="data">
+  <div class="wrap">
+    <div class="head"><p class="eyebrow">巡檢項目 01｜資料源與整理</p><h2>92,250 筆全數保留，空白是設備特性</h2>
+      <p class="muted">資料來自 PAIR Antdata 時間序列資料集 <span class="mono">iot_sensor_logs</span>，11 個欄位、45 台設備，每台 2,050 筆。</p></div>
+    <div class="grid2">
+      <div class="panel">
+        <h3>設備組成</h3>
+        <p class="sub">三類設備台數不同，比較時一律看「比例」而非筆數</p>
+        <div class="stackbar" id="compbar" role="img" aria-label="設備組成：溫度感測器 20 台、壓力計 15 台、馬達 10 台"></div>
+        <div class="legend"><span><i style="background:var(--ts)"></i>溫度感測器 20 台・41,000 筆</span><span><i style="background:var(--pg)"></i>壓力計 15 台・30,750 筆</span><span><i style="background:var(--motor)"></i>馬達 10 台・20,500 筆</span></div>
+        <dl class="facts" style="margin-top:18px">
+          <dt>期間</dt><dd>2025/01/01 – 01/29（1/29 只到 11:57）</dd>
+          <dt>欄位</dt><dd><table class="fields">
+            <tr><td class="mono">log_id</td><td>紀錄編號</td></tr>
+            <tr><td class="mono">timestamp</td><td>量測時間</td></tr>
+            <tr><td class="mono">device_id</td><td>設備編號（如 MOT001）</td></tr>
+            <tr><td class="mono">device_type</td><td>設備類型</td></tr>
+            <tr><td class="mono">temperature</td><td>溫度</td></tr>
+            <tr><td class="mono">pressure</td><td>壓力（只有壓力計有）</td></tr>
+            <tr><td class="mono">vibration_level</td><td>震動（壓力計、馬達有）</td></tr>
+            <tr><td class="mono">power_consumption</td><td>耗電</td></tr>
+            <tr><td class="mono">status</td><td>狀態</td></tr>
+            <tr><td class="mono">factory_zone</td><td>廠區</td></tr>
+            <tr><td class="mono">created_at</td><td>資料建檔時間</td></tr></table></dd>
+          <dt>設備類型</dt><dd><span class="mono">temperature_sensor</span> 溫度感測器・<span class="mono">pressure_gauge</span> 壓力計・<span class="mono">motor</span> 馬達</dd>
+          <dt>狀態</dt><dd>normal 正常・warning 警告・error 錯誤・offline 離線</dd>
+        </dl>
+      </div>
+      <div class="panel" id="audit">
+        <h3>資料整理與稽核</h3>
+        <p class="sub">所有數字以 Python 從原始資料重新計算並逐項比對</p>
+        <ul class="checks" style="margin-top:14px">
+          <li><span>無重複紀錄；分析時統一以量測時間 <span class="mono">timestamp</span> 排序</span></li>
+          <li><span>壓力空白 61,500 筆、震動空白 41,000 筆：只有壓力計量壓力、溫度感測器不量震動，<b>不是資料錯誤</b>，不刪不補</span></li>
+          <li><span>每個廠區只放一種設備，廠區比較等於設備比較，因此不另做廠區結論</span></li>
+          <li><span>共用定義：異常＝非 normal；過熱＝馬達 &gt; 80°C；高震動＝震動 ≥ 15（分析門檻，非原廠規格）</span></li>
+          <li><span><b>兩次獨立稽核</b>全部通過：初版 61 項、加強版 76 項，皆從原始資料重新計算並逐項比對</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="plan">
+  <div class="wrap">
+    <div class="head"><p class="eyebrow">巡檢項目 02｜規劃說明</p><h2>報告對象：工廠設備維運主管</h2>
+      <p class="muted">維運主管最在乎三件事：設備會不會停機、電花在哪裡、什麼時候該去檢查。我們把這三件事變成三個問題，每人負責一個面向。</p></div>
+    <div class="plan">
+      <div class="p" style="--c:var(--mars)"><div class="n">面向一｜異常｜Mars</div><div class="qq">設備現在健康嗎？</div><div class="f">看 <span class="mono">status</span>：各狀態比例、哪類設備異常比例高、哪台異常最多</div></div>
+      <div class="p" style="--c:var(--tim)"><div class="n">面向二｜能耗｜Tim</div><div class="qq">電花在哪裡？</div><div class="f">看 <span class="mono">power_consumption</span>：各類設備耗電、耗電前十名、24 小時變化</div></div>
+      <div class="p" style="--c:var(--kelly)"><div class="n">面向三｜感測值｜Kelly</div><div class="qq">什麼訊號代表快出問題？</div><div class="f">看 <span class="mono">temperature</span>、<span class="mono">pressure</span>、<span class="mono">vibration_level</span>：找出過熱與高震動的門檻</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="analysis">
+  <div class="wrap">
+    <div class="head"><p class="eyebrow">巡檢項目 03｜三個分析面向</p><h2>從維運主管的三個問題出發</h2>
+      <p class="muted">每個面向對應 Tableau 故事的一個儀表板。滑鼠移到圖上可看數字，部分圖表可依設備類型篩選。</p></div>
+    <div class="tabs" role="tablist" aria-label="分析面向">
+      <button class="tab" role="tab" id="tab-anomaly" aria-controls="pane-anomaly" aria-selected="true">① 異常 <span class="who">Mars</span></button>
+      <button class="tab" role="tab" id="tab-energy" aria-controls="pane-energy" aria-selected="false">② 能耗 <span class="who">Tim</span></button>
+      <button class="tab" role="tab" id="tab-sensor" aria-controls="pane-sensor" aria-selected="false">③ 感測值 <span class="who">Kelly</span></button>
+    </div>
+
+    <div id="pane-anomaly" role="tabpanel" aria-labelledby="tab-anomaly">
+      <p class="q"><b>設備現在健康嗎？</b>有沒有哪一類、哪一台特別差？</p>
+      <div class="grid3">
+        <div class="panel"><p class="sheet">1-1｜狀態比例</p><h3>近九成五紀錄正常</h3><p class="sub">資料：全部 92,250 筆紀錄</p><div class="chart"><canvas id="c-status" aria-label="狀態分布長條圖"></canvas></div>
+          <p class="takeaway">異常合計約 <b>5.3%</b>，三種異常比例相近。</p></div>
+        <div class="panel"><p class="sheet">1-2｜類型異常比例</p><h3>馬達：沒有預警就出錯</h3><p class="sub">資料：三類設備各自的紀錄</p>
+          <div class="chips" id="rate-chips" role="group" aria-label="比例類型">
+            <button class="chip" aria-pressed="true" data-k="ab">異常率</button><button class="chip" aria-pressed="false" data-k="error">error</button><button class="chip" aria-pressed="false" data-k="warning">warning</button></div>
+          <div class="chart"><canvas id="c-rate" aria-label="設備類型比例長條圖"></canvas></div>
+          <p class="takeaway">異常率相近，但馬達 <b>error 最高、warning 最低</b>。</p></div>
+        <div class="panel"><p class="sheet">1-3｜設備排行</p><h3>異常分散，沒有問題機台</h3><p class="sub">資料：45 台設備，取前 10 名</p>
+          <div class="chips" id="dev-chips" role="group" aria-label="設備篩選">
+            <button class="chip" aria-pressed="true" data-t="all">全部</button><button class="chip" aria-pressed="false" data-t="motor">馬達</button><button class="chip" aria-pressed="false" data-t="pressure_gauge">壓力計</button><button class="chip" aria-pressed="false" data-t="temperature_sensor">溫度感測器</button></div>
+          <div class="chart"><canvas id="c-dev" aria-label="設備異常排行"></canvas></div>
+          <p class="takeaway" id="dev-note"></p></div>
+      </div>
+    </div>
+
+    <div id="pane-energy" role="tabpanel" aria-labelledby="tab-energy" hidden>
+      <p class="q"><b>電花在哪裡？</b>哪裡可以省？（資料未提供單位，稱「耗電值」）</p>
+      <div class="grid3">
+        <div class="panel"><p class="sheet">2-1｜類型耗電占比</p><h3>95.3% 的電在馬達</h3><p class="sub">資料：全部設備的總耗電</p><div class="chart"><canvas id="c-share" aria-label="耗電占比"></canvas></div>
+          <p class="takeaway">馬達平均每筆 <b>27.5</b>，是壓力計的 55 倍、溫度感測器的 92 倍。</p></div>
+        <div class="panel"><p class="sheet">2-2｜耗電前十名</p><h3>10 台馬達用量相近</h3><p class="sub">資料：45 台設備，取前 10 名</p>
+          <div class="chips" id="pw-chips" role="group" aria-label="設備篩選">
+            <button class="chip" aria-pressed="true" data-t="all">全部</button><button class="chip" aria-pressed="false" data-t="pressure_gauge">壓力計</button><button class="chip" aria-pressed="false" data-t="temperature_sensor">溫度感測器</button></div>
+          <div class="chart"><canvas id="c-pw" aria-label="耗電排行"></canvas></div>
+          <p class="takeaway" id="pw-note"></p></div>
+        <div class="panel"><p class="sheet">2-3｜馬達時段耗電</p><h3>全天沒有尖離峰</h3><p class="sub">資料：馬達 20,500 筆紀錄</p><div class="chart"><canvas id="c-hour" aria-label="馬達時段耗電"></canvas></div>
+          <p class="takeaway">最高與最低差距 <b>不到 8%</b>：節能要從設備效率下手，而不是調整時段。</p></div>
+      </div>
+    </div>
+
+    <div id="pane-sensor" role="tabpanel" aria-labelledby="tab-sensor" hidden>
+      <p class="q"><b>什麼訊號代表設備快出問題？</b></p>
+      <div class="grid2">
+        <div class="panel"><p class="sheet">3-1｜馬達溫度分布</p><h3>過熱紀錄約占 2%</h3><p class="sub">資料：馬達 20,500 筆紀錄</p><div class="chart"><canvas id="c-temp5" aria-label="馬達溫度分布"></canvas></div>
+          <p class="takeaway">超過 80°C 後筆數驟降，共 <b>408 筆</b>，最高 109°C。</p></div>
+        <div class="panel"><p class="sheet">3-2｜過熱紀錄排行</p><h3>10 台馬達都有過熱</h3><p class="sub">資料：10 台馬達</p><div class="chart"><canvas id="c-oh" aria-label="過熱排行"></canvas></div>
+          <p class="takeaway">31–48 筆，<b>29 天每天都有</b>：監控要做在每一台。</p></div>
+      </div>
+      <div class="panel" style="margin-top:20px"><p class="sheet">3-3｜壓力與震動</p><h3>壓力看不出關係，問題出在震動</h3><p class="sub">資料：壓力計 30,750 筆紀錄，每一點是一筆（位置相同的點會重疊）</p>
+        <div class="legend" id="sc-legend"></div>
+        <div class="chart tall"><canvas id="c-scatter" aria-label="壓力計的壓力與震動散佈圖，依狀態上色"></canvas></div>
+        <p class="takeaway">紅點（error）在各種壓力都有，代表壓力高低跟 error 看不出關係；但虛線 15 以上幾乎全是紅點，下一張用數字確認。</p></div>
+      <div class="panel" style="margin-top:20px"><p class="sheet">3-4｜震動分組檢查表</p><h3>震動 ≥ 15 幾乎都是 error</h3><p class="sub">資料：壓力計 30,750 筆紀錄</p><div class="chart"><canvas id="c-vibgrp" aria-label="震動分組 error 比例"></canvas></div>
+          <p class="takeaway">高震動 130 筆中 <b>128 筆 error（98.5%）</b>，0 筆 normal。</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="simulator">
+  <div class="wrap">
+    <div class="head"><p class="eyebrow">巡檢項目 04｜門檻模擬器</p><h2>為什麼是 80°C 和 15？自己拖拖看</h2>
+      <p class="muted">兩個門檻都是看資料分布訂出的分析門檻。拖動滑桿，看看門檻往上或往下移，被標記的紀錄和 error 比例會怎麼變。</p></div>
+
+    <div class="panel" style="margin-bottom:20px">
+      <div class="sim">
+        <div class="control">
+          <label for="t-range">馬達過熱門檻（溫度 &gt; T）</label>
+          <div class="slider-row"><input type="range" id="t-range" min="60" max="105" step="1" value="80"><output id="t-out" for="t-range">80°C</output></div>
+          <div class="presets"><button class="chip" data-tp="70">70°C</button><button class="chip" data-tp="80">80°C（採用）</button><button class="chip" data-tp="90">90°C</button><button class="chip" data-tp="100">100°C</button></div>
+          <div class="readout">
+            <div><div class="v" id="t-n">408</div><div class="k">筆被標記為過熱</div></div>
+            <div><div class="v" id="t-share">1.99%</div><div class="k">占馬達紀錄</div></div>
+          </div>
+          <div><p class="sub" style="margin-bottom:6px">被標記紀錄的狀態組成</p><div class="mix" id="t-mix"></div><div class="legend" id="t-legend"></div></div>
+          <p class="hint" id="t-hint"></p>
+        </div>
+        <div><div class="chart tall"><canvas id="c-tsim" aria-label="馬達溫度分布與門檻"></canvas></div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="sim">
+        <div class="control">
+          <label for="v-range">高震動門檻（震動 ≥ V）</label>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="sub">設備</span>
+            <select id="v-dev" aria-label="選擇設備"><option value="pressure_gauge">壓力計</option><option value="motor">馬達（交叉確認）</option></select></div>
+          <div class="slider-row"><input type="range" id="v-range" min="2" max="20" step="0.5" value="15"><output id="v-out" for="v-range">15</output></div>
+          <div class="presets"><button class="chip" data-vp="10">10</button><button class="chip" data-vp="14">14</button><button class="chip" data-vp="15">15（採用）</button><button class="chip" data-vp="17">17</button></div>
+          <div class="readout">
+            <div><div class="v" id="v-n">130</div><div class="k">筆達到門檻</div></div>
+            <div><div class="v" id="v-rate">98.5%</div><div class="k">其中為 error</div></div>
+            <div><div class="v" id="v-normal">0</div><div class="k">其中為 normal</div></div>
+            <div><div class="v" id="v-below">0.9%</div><div class="k">門檻以下的 error 比例</div></div>
+          </div>
+          <p class="hint" id="v-hint"></p>
+        </div>
+        <div><div class="chart tall"><canvas id="c-vsim" aria-label="震動門檻與 error 比例"></canvas></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="conclusion">
+  <div class="wrap">
+    <div class="head"><p class="eyebrow">巡檢項目 05｜分析結論總覽</p><h2>三個面向，三個要記住的數字</h2></div>
+    <div class="concl">
+      <div class="c" style="--c:var(--mars)"><div class="tagline">面向一｜異常</div><div class="big">94.7%</div><div class="hd">整體健康，但馬達缺少預警</div>
+        <p>94.7% 的紀錄正常，異常分散在各台設備（最多 132 筆、平均 109 筆），沒有單一問題機台。但<b>馬達的 error 最高、warning 最低</b>，常常沒亮黃燈就直接出錯。</p>
+        <div class="ev">依據 1-1、1-2、1-3　→ 對應建議 3</div></div>
+      <div class="c" style="--c:var(--tim)"><div class="tagline">面向二｜能耗</div><div class="big">95.3%</div><div class="hd">電幾乎都用在馬達</div>
+        <p>10 台馬達用掉全廠 <b>95.3% 的電</b>，前十名全是馬達、彼此只差 2.5%，24 小時也沒有尖峰離峰。要省電，得整個馬達群一起改善。</p>
+        <div class="ev">依據 2-1、2-2、2-3　→ 對應建議 4</div></div>
+      <div class="c" style="--c:var(--kelly)"><div class="tagline">面向三｜感測值</div><div class="big">80°C／15</div><div class="hd">兩個預警訊號</div>
+        <p><b>馬達超過 80°C 是預警</b>：10 台每一台、29 天每天都有過熱。<b>震動 ≥ 15 幾乎就是故障</b>：130 筆中 128 筆是 error（98.5%），壓力高低則看不出關係。</p>
+        <div class="ev">依據 3-1～3-4、門檻模擬器　→ 對應建議 1、2</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="actions">
+  <div class="wrap">
+    <div class="head"><p class="eyebrow">巡檢項目 06｜行動建議</p><h2>把「壞了才修」變成「看訊號先檢查」</h2></div>
+    <ol class="acts">
+      <li style="--c:var(--error)"><b>震動 ≥ 15 的設備列為優先檢查</b><span class="why">震動 ≥ 15 時 98.5% 是 error，看到就該去檢查，命中率最高</span></li>
+      <li style="--c:var(--hot)"><b>10 台馬達全部監控溫度（&gt; 80°C 提醒）</b><span class="why">每一台、29 天每天都有過熱，不能只挑幾台看</span></li>
+      <li style="--c:var(--warning)"><b>加強馬達預警，在震動到 15 之前先提醒</b><span class="why">馬達 error 最高、warning 最低，常常沒亮黃燈就直接出錯</span></li>
+      <li style="--c:var(--motor)"><b>節能計畫鎖定整個馬達群（減少空轉、變頻調速）</b><span class="why">馬達用掉 95.3% 的電，10 台用量相近、全天持平，問題在整群而非單台或時段</span></li>
+    </ol>
+    <p class="note">以上是巡檢的優先順序，不是自動停機規則。</p>
+  </div>
+</section>
+
+<section class="block" id="team">
+  <div class="wrap">
+    <div class="head"><p class="eyebrow">巡檢項目 07｜團隊與時程</p><h2>三人分工，每人負責一個面向</h2></div>
+    <div class="team">
+      <div class="person" style="--c:var(--mars)"><div class="name">Mars</div><div class="role">異常</div>
+        <ul><li>製作：狀態比例、設備類型異常比例、異常設備排行</li><li>報告：開場、資料源、資料整理、規劃說明、故事 ①</li></ul></div>
+      <div class="person" style="--c:var(--tim)"><div class="name">Tim</div><div class="role">能耗</div>
+        <ul><li>製作：設備類型耗電、耗電前十名、馬達時段耗電</li><li>報告：故事 ②</li></ul></div>
+      <div class="person" style="--c:var(--kelly)"><div class="name">Kelly</div><div class="role">感測值・整體統整</div>
+        <ul><li>製作：馬達溫度分布、過熱紀錄排行、壓力與震動</li><li>負責整體統整</li><li>報告：故事 ③、結論與建議、Q&amp;A</li></ul></div>
+    </div>
+    <div class="gantt-wrap"><div class="gantt" role="table" aria-label="作業時程甘特圖">
+      <div class="g-head g-lab"></div><div class="g-head" style="grid-column:2">11/10<small>（二）</small></div><div class="g-head" style="grid-column:3">11/11<small>（三）</small></div><div class="g-head" style="grid-column:4">11/12<small>（四）</small></div><div class="g-head" style="grid-column:5">11/13<small>（五）</small></div><div class="g-head" style="grid-column:6">11/14<small>（六）</small></div><div class="g-head" style="grid-column:7">11/15<small>（日）</small></div><div class="g-head" style="grid-column:8">11/16<small>（一）</small></div>
+      <div class="g-lab" style="grid-row:2/span 3;color:var(--kelly)">Kelly</div>
+      <div class="g-band" style="grid-row:2/span 3"></div>
+      <div class="g-bar" style="grid-row:2;grid-column:2/span 1;--c:var(--kelly)">感測值三張圖</div>
+      <div class="g-bar" style="grid-row:3;grid-column:4/span 1;--c:var(--kelly)">整合儀表板與整體文字內容</div>
+      <div class="g-bar" style="grid-row:4;grid-column:5/span 1;--c:var(--kelly)">文字版與簡報第一版</div>
+      <div class="g-lab" style="grid-row:5/span 1;color:var(--mars)">Mars</div>
+      <div class="g-band" style="grid-row:5/span 1"></div>
+      <div class="g-bar" style="grid-row:5;grid-column:2/span 2;--c:var(--mars)">異常三張圖</div>
+      <div class="g-lab" style="grid-row:6/span 1;color:var(--tim)">Tim</div>
+      <div class="g-band" style="grid-row:6/span 1"></div>
+      <div class="g-bar" style="grid-row:6;grid-column:2/span 2;--c:var(--tim)">能耗三張圖</div>
+      <div class="g-lab" style="grid-row:7/span 3;color:var(--accent)">全組</div>
+      <div class="g-band" style="grid-row:7/span 3"></div>
+      <div class="g-bar" style="grid-row:7;grid-column:5/span 1;--c:var(--accent)">圖表數據交叉驗證（Claude＋Codex）</div>
+      <div class="g-bar" style="grid-row:8;grid-column:6/span 1;--c:var(--accent)">檢視成果</div>
+      <div class="g-bar" style="grid-row:9;grid-column:7/span 1;--c:var(--accent)">試講、定稿</div>
+      <div class="g-lab" style="grid-row:10">小組會議</div>
+      <div class="g-meet" style="grid-row:10;grid-column:3">◆ 第 1 次會議</div>
+      <div class="g-meet" style="grid-row:10;grid-column:6">◆ 第 2 次會議</div>
+      <div class="g-meet" style="grid-row:10;grid-column:7">◆ 第 3 次會議</div>
+      <div class="g-goal" style="grid-row:2/span 9;grid-column:8"><span>課堂發表</span></div>
+    </div></div>
+    <p class="note">會議內容：第 1 次確認分工與時程；第 2 次檢視報告成果；第 3 次全組試講、定稿。</p>
+    <div class="links">
+      <a href="https://gamma.app/docs/IoT-29--v4mdquwjqyodgdx" target="_blank" rel="noopener">簡報（Gamma）</a>
+      <a href="https://hackmd.io/@Yihsuanchen1/SJljDOTTfg/https%3A%2F%2Fhackmd.io%2FCkvrlWlvTF2aL6aYtM8VPw%2Fpublish" target="_blank" rel="noopener">報告說明（HackMD）</a>
+      <a href="https://github.com/KellyChen413/iot-tableau-group" target="_blank" rel="noopener">GitHub：資料稽核與 Tableau 檔</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer><div class="wrap">資料來源：PAIR Antdata <span class="mono">iot_sensor_logs</span>。本頁所有數字由原始資料彙總計算，並經兩次獨立稽核（61 項、76 項）比對。頁面僅包含彙總數值，不含原始紀錄。</div></footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const D = {"status":{"normal":87354,"warning":1764,"error":1331,"offline":1801},"types":{"motor":{"devices":10,"n":20500,"status":{"normal":19555,"warning":154,"error":385,"offline":406},"power_sum":563679.9,"power_mean":27.497},"pressure_gauge":{"devices":15,"n":30750,"status":{"normal":29059,"warning":694,"error":407,"offline":590},"power_sum":15313.5,"power_mean":0.498},"temperature_sensor":{"devices":20,"n":41000,"status":{"normal":38740,"warning":916,"error":539,"offline":805},"power_sum":12298.6,"power_mean":0.3}},"devices":[{"id":"MOT001","type":"motor","ab":82,"err":39,"pw":55565.2},{"id":"MOT002","type":"motor","ab":97,"err":42,"pw":56373.5},{"id":"MOT003","type":"motor","ab":103,"err":37,"pw":56269.0},{"id":"MOT004","type":"motor","ab":94,"err":35,"pw":56919.4},{"id":"MOT005","type":"motor","ab":106,"err":38,"pw":55928.2},{"id":"MOT006","type":"motor","ab":92,"err":45,"pw":56245.3},{"id":"MOT007","type":"motor","ab":94,"err":34,"pw":56929.1},{"id":"MOT008","type":"motor","ab":91,"err":40,"pw":56171.4},{"id":"MOT009","type":"motor","ab":83,"err":31,"pw":56678.5},{"id":"MOT010","type":"motor","ab":103,"err":44,"pw":56600.3},{"id":"PRE001","type":"pressure_gauge","ab":115,"err":24,"pw":1020.1},{"id":"PRE002","type":"pressure_gauge","ab":93,"err":28,"pw":1027.4},{"id":"PRE003","type":"pressure_gauge","ab":107,"err":28,"pw":1014.8},{"id":"PRE004","type":"pressure_gauge","ab":102,"err":22,"pw":1026.9},{"id":"PRE005","type":"pressure_gauge","ab":120,"err":28,"pw":1015.4},{"id":"PRE006","type":"pressure_gauge","ab":107,"err":26,"pw":1025.8},{"id":"PRE007","type":"pressure_gauge","ab":115,"err":21,"pw":1016.6},{"id":"PRE008","type":"pressure_gauge","ab":123,"err":37,"pw":1032.6},{"id":"PRE009","type":"pressure_gauge","ab":93,"err":25,"pw":1015.1},{"id":"PRE010","type":"pressure_gauge","ab":114,"err":26,"pw":1025.1},{"id":"PRE011","type":"pressure_gauge","ab":130,"err":24,"pw":1023.6},{"id":"PRE012","type":"pressure_gauge","ab":132,"err":35,"pw":1022.9},{"id":"PRE013","type":"pressure_gauge","ab":120,"err":29,"pw":1014.2},{"id":"PRE014","type":"pressure_gauge","ab":116,"err":30,"pw":1007.2},{"id":"PRE015","type":"pressure_gauge","ab":104,"err":24,"pw":1025.7},{"id":"TEM001","type":"temperature_sensor","ab":122,"err":35,"pw":620.2},{"id":"TEM002","type":"temperature_sensor","ab":130,"err":27,"pw":613.2},{"id":"TEM003","type":"temperature_sensor","ab":122,"err":27,"pw":611.3},{"id":"TEM004","type":"temperature_sensor","ab":110,"err":35,"pw":622.8},{"id":"TEM005","type":"temperature_sensor","ab":101,"err":35,"pw":617.6},{"id":"TEM006","type":"temperature_sensor","ab":99,"err":18,"pw":616.9},{"id":"TEM007","type":"temperature_sensor","ab":128,"err":31,"pw":616.1},{"id":"TEM008","type":"temperature_sensor","ab":114,"err":23,"pw":612.9},{"id":"TEM009","type":"temperature_sensor","ab":117,"err":31,"pw":606.6},{"id":"TEM010","type":"temperature_sensor","ab":101,"err":25,"pw":618.0},{"id":"TEM011","type":"temperature_sensor","ab":102,"err":20,"pw":608.7},{"id":"TEM012","type":"temperature_sensor","ab":103,"err":25,"pw":611.1},{"id":"TEM013","type":"temperature_sensor","ab":97,"err":14,"pw":617.1},{"id":"TEM014","type":"temperature_sensor","ab":123,"err":36,"pw":613.5},{"id":"TEM015","type":"temperature_sensor","ab":122,"err":24,"pw":615.3},{"id":"TEM016","type":"temperature_sensor","ab":106,"err":28,"pw":606.9},{"id":"TEM017","type":"temperature_sensor","ab":102,"err":21,"pw":620.8},{"id":"TEM018","type":"temperature_sensor","ab":108,"err":27,"pw":615.3},{"id":"TEM019","type":"temperature_sensor","ab":121,"err":29,"pw":613.4},{"id":"TEM020","type":"temperature_sensor","ab":132,"err":28,"pw":620.7}],"motor_hour":[27.05,27.91,28.0,27.69,28.1,27.83,28.3,27.47,27.7,27.52,26.72,26.89,26.29,28.22,26.67,26.84,27.34,27.31,28.02,27.5,27.81,27.98,27.37,27.41],"motor_temp_bins":{"min":29,"max":109,"bins":{"29":{"normal":2,"warning":0,"error":0,"offline":0},"30":{"normal":370,"warning":0,"error":1,"offline":14},"31":{"normal":396,"warning":0,"error":3,"offline":9},"32":{"normal":381,"warning":0,"error":9,"offline":8},"33":{"normal":415,"warning":0,"error":5,"offline":6},"34":{"normal":341,"warning":0,"error":7,"offline":4},"35":{"normal":409,"warning":0,"error":7,"offline":12},"36":{"normal":355,"warning":0,"error":9,"offline":11},"37":{"normal":326,"warning":0,"error":4,"offline":8},"38":{"normal":380,"warning":0,"error":6,"offline":4},"39":{"normal":396,"warning":0,"error":12,"offline":14},"40":{"normal":388,"warning":0,"error":8,"offline":6},"41":{"normal":389,"warning":0,"error":7,"offline":8},"42":{"normal":407,"warning":0,"error":8,"offline":10},"43":{"normal":375,"warning":0,"error":5,"offline":5},"44":{"normal":384,"warning":0,"error":6,"offline":12},"45":{"normal":377,"warning":0,"error":8,"offline":7},"46":{"normal":392,"warning":0,"error":8,"offline":6},"47":{"normal":367,"warning":0,"error":8,"offline":6},"48":{"normal":377,"warning":0,"error":7,"offline":7},"49":{"normal":382,"warning":0,"error":6,"offline":4},"50":{"normal":373,"warning":0,"error":7,"offline":13},"51":{"normal":399,"warning":0,"error":3,"offline":11},"52":{"normal":385,"warning":0,"error":4,"offline":9},"53":{"normal":402,"warning":0,"error":4,"offline":6},"54":{"normal":374,"warning":0,"error":7,"offline":9},"55":{"normal":373,"warning":0,"error":8,"offline":4},"56":{"normal":389,"warning":0,"error":8,"offline":7},"57":{"normal":419,"warning":0,"error":4,"offline":7},"58":{"normal":390,"warning":0,"error":5,"offline":8},"59":{"normal":414,"warning":0,"error":6,"offline":9},"60":{"normal":416,"warning":0,"error":9,"offline":4},"61":{"normal":419,"warning":0,"error":4,"offline":5},"62":{"normal":397,"warning":0,"error":6,"offline":5},"63":{"normal":376,"warning":0,"error":6,"offline":5},"64":{"normal":357,"warning":0,"error":8,"offline":10},"65":{"normal":384,"warning":0,"error":6,"offline":8},"66":{"normal":402,"warning":0,"error":3,"offline":6},"67":{"normal":397,"warning":0,"error":6,"offline":7},"68":{"normal":377,"warning":0,"error":8,"offline":7},"69":{"normal":427,"warning":0,"error":4,"offline":10},"70":{"normal":381,"warning":0,"error":4,"offline":8},"71":{"normal":394,"warning":0,"error":5,"offline":8},"72":{"normal":372,"warning":0,"error":10,"offline":6},"73":{"normal":383,"warning":0,"error":10,"offline":12},"74":{"normal":403,"warning":0,"error":5,"offline":6},"75":{"normal":372,"warning":0,"error":7,"offline":5},"76":{"normal":415,"warning":0,"error":8,"offline":12},"77":{"normal":375,"warning":0,"error":8,"offline":16},"78":{"normal":423,"warning":0,"error":5,"offline":5},"79":{"normal":373,"warning":0,"error":10,"offline":11},"80":{"normal":23,"warning":0,"error":0,"offline":0},"81":{"normal":18,"warning":0,"error":1,"offline":0},"82":{"normal":15,"warning":0,"error":0,"offline":1},"83":{"normal":20,"warning":0,"error":0,"offline":0},"84":{"normal":15,"warning":0,"error":0,"offline":1},"85":{"normal":9,"warning":0,"error":2,"offline":1},"86":{"normal":22,"warning":0,"error":0,"offline":2},"87":{"normal":22,"warning":0,"error":1,"offline":0},"88":{"normal":19,"warning":0,"error":0,"offline":0},"89":{"normal":22,"warning":0,"error":0,"offline":1},"90":{"normal":0,"warning":18,"error":0,"offline":0},"91":{"normal":0,"warning":25,"error":1,"offline":0},"92":{"normal":0,"warning":29,"error":0,"offline":0},"93":{"normal":0,"warning":21,"error":1,"offline":0},"94":{"normal":0,"warning":17,"error":0,"offline":0},"95":{"normal":0,"warning":12,"error":1,"offline":0},"96":{"normal":0,"warning":10,"error":0,"offline":0},"97":{"normal":0,"warning":10,"error":1,"offline":0},"98":{"normal":0,"warning":6,"error":0,"offline":0},"99":{"normal":0,"warning":6,"error":0,"offline":0},"100":{"normal":0,"warning":0,"error":13,"offline":0},"101":{"normal":0,"warning":0,"error":9,"offline":0},"102":{"normal":0,"warning":0,"error":5,"offline":0},"103":{"normal":0,"warning":0,"error":7,"offline":0},"104":{"normal":0,"warning":0,"error":7,"offline":0},"105":{"normal":0,"warning":0,"error":3,"offline":0},"106":{"normal":0,"warning":0,"error":5,"offline":0},"107":{"normal":0,"warning":0,"error":5,"offline":0},"109":{"normal":0,"warning":0,"error":1,"offline":0}}},"motor_overheat":{"MOT004":48,"MOT003":45,"MOT006":44,"MOT009":43,"MOT010":41,"MOT002":40,"MOT007":39,"MOT008":39,"MOT005":38,"MOT001":31},"overheat_days":29,"motor_temp_max":109.06,"vib_bins":{"motor":{"2":{"normal":1005,"warning":10,"error":3,"offline":21},"3":{"normal":1102,"warning":11,"error":4,"offline":23},"4":{"normal":1058,"warning":6,"error":2,"offline":24},"5":{"normal":1073,"warning":14,"error":5,"offline":15},"6":{"normal":1034,"warning":10,"error":3,"offline":19},"7":{"normal":1092,"warning":10,"error":2,"offline":23},"8":{"normal":1071,"warning":9,"error":5,"offline":18},"9":{"normal":1064,"warning":6,"error":2,"offline":18},"10":{"normal":1091,"warning":13,"error":3,"offline":29},"11":{"normal":1075,"warning":6,"error":1,"offline":23},"12":{"normal":1079,"warning":9,"error":3,"offline":23},"13":{"normal":1088,"warning":6,"error":4,"offline":24},"14":{"normal":1095,"warning":4,"error":3,"offline":21},"15":{"normal":1066,"warning":5,"error":0,"offline":22},"16":{"normal":1052,"warning":10,"error":2,"offline":25},"17":{"normal":1084,"warning":8,"error":4,"offline":25},"18":{"normal":1103,"warning":5,"error":5,"offline":20},"19":{"normal":1116,"warning":12,"error":2,"offline":21},"20":{"normal":24,"warning":0,"error":0,"offline":3},"21":{"normal":14,"warning":0,"error":0,"offline":0},"22":{"normal":17,"warning":0,"error":0,"offline":0},"23":{"normal":18,"warning":0,"error":0,"offline":0},"24":{"normal":15,"warning":0,"error":0,"offline":0},"25":{"normal":15,"warning":0,"error":0,"offline":0},"26":{"normal":26,"warning":0,"error":0,"offline":1},"27":{"normal":23,"warning":0,"error":0,"offline":0},"28":{"normal":23,"warning":0,"error":0,"offline":1},"29":{"normal":32,"warning":0,"error":0,"offline":1},"30":{"normal":0,"warning":0,"error":29,"offline":1},"31":{"normal":0,"warning":0,"error":33,"offline":1},"32":{"normal":0,"warning":0,"error":37,"offline":0},"33":{"normal":0,"warning":0,"error":29,"offline":1},"34":{"normal":0,"warning":0,"error":16,"offline":1},"35":{"normal":0,"warning":0,"error":21,"offline":0},"36":{"normal":0,"warning":0,"error":23,"offline":0},"37":{"normal":0,"warning":0,"error":16,"offline":0},"38":{"normal":0,"warning":0,"error":18,"offline":0},"39":{"normal":0,"warning":0,"error":22,"offline":0},"40":{"normal":0,"warning":0,"error":12,"offline":0},"41":{"normal":0,"warning":0,"error":15,"offline":0},"42":{"normal":0,"warning":0,"error":17,"offline":1},"43":{"normal":0,"warning":0,"error":9,"offline":0},"44":{"normal":0,"warning":0,"error":11,"offline":0},"45":{"normal":0,"warning":0,"error":11,"offline":0},"46":{"normal":0,"warning":0,"error":8,"offline":0},"47":{"normal":0,"warning":0,"error":3,"offline":1},"49":{"normal":0,"warning":0,"error":2,"offline":0}},"pressure_gauge":{"0":{"normal":7004,"warning":171,"error":67,"offline":154},"1":{"normal":7139,"warning":162,"error":62,"offline":141},"2":{"normal":7089,"warning":179,"error":72,"offline":158},"3":{"normal":7002,"warning":163,"error":69,"offline":120},"4":{"normal":59,"warning":2,"error":2,"offline":1},"10":{"normal":14,"warning":0,"error":0,"offline":0},"11":{"normal":27,"warning":0,"error":0,"offline":2},"12":{"normal":40,"warning":0,"error":0,"offline":0},"13":{"normal":46,"warning":1,"error":0,"offline":1},"14":{"normal":44,"warning":0,"error":0,"offline":0},"15":{"normal":35,"warning":0,"error":0,"offline":1},"16":{"normal":40,"warning":1,"error":0,"offline":0},"17":{"normal":30,"warning":1,"error":0,"offline":0},"18":{"normal":44,"warning":0,"error":0,"offline":0},"19":{"normal":34,"warning":3,"error":1,"offline":1},"20":{"normal":37,"warning":2,"error":0,"offline":1},"21":{"normal":45,"warning":2,"error":0,"offline":2},"22":{"normal":41,"warning":0,"error":1,"offline":0},"23":{"normal":30,"warning":0,"error":1,"offline":0},"24":{"normal":48,"warning":1,"error":0,"offline":0},"25":{"normal":45,"warning":0,"error":0,"offline":0},"26":{"normal":39,"warning":1,"error":4,"offline":3},"27":{"normal":36,"warning":3,"error":0,"offline":1},"28":{"normal":47,"warning":0,"error":0,"offline":2},"29":{"normal":44,"warning":2,"error":0,"offline":0},"30":{"normal":0,"warning":0,"error":46,"offline":0},"31":{"normal":0,"warning":0,"error":39,"offline":1},"32":{"normal":0,"warning":0,"error":26,"offline":1},"33":{"normal":0,"warning":0,"error":17,"offline":0}}},"days":29};
+const ST=['normal','warning','error','offline'];
+const ZH={normal:'正常',warning:'警告',error:'錯誤',offline:'離線',motor:'馬達',pressure_gauge:'壓力計',temperature_sensor:'溫度感測器'};
+const TYV={motor:'--motor',pressure_gauge:'--pg',temperature_sensor:'--ts'};
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmt=n=>n.toLocaleString('en-US');
+const pct=(a,b,d=1)=>b?(a/b*100).toFixed(d)+'%':'—';
+const sum=o=>Object.values(o).reduce((a,b)=>a+b,0);
+const charts={};
+
+function baseOpts(extra={}){
+  const ink=css('--muted'), grid=css('--rule');
+  return Object.assign({responsive:true,maintainAspectRatio:false,animation:{duration:250},
+    plugins:{legend:{display:false},tooltip:{backgroundColor:css('--ink'),titleColor:css('--bg'),bodyColor:css('--bg'),titleFont:{family:css('--f-body')},bodyFont:{family:css('--f-mono')}}},
+    scales:{x:{ticks:{color:ink,font:{family:css('--f-body'),size:11}},grid:{color:grid}},y:{ticks:{color:ink,font:{family:css('--f-body'),size:11}},grid:{color:grid},beginAtZero:true}}},extra);
+}
+function ax(t){return {display:true,text:t,color:css('--muted'),font:{family:css('--f-body'),size:12}};}
+function make(id,cfg){ if(charts[id]) charts[id].destroy(); charts[id]=new Chart(document.getElementById(id),cfg); return charts[id]; }
+
+/* composition bar */
+function drawComp(){
+  const el=document.getElementById('compbar'); el.textContent='';
+  [['temperature_sensor',20],['pressure_gauge',15],['motor',10]].forEach(([t,n])=>{
+    const s=document.createElement('span'); s.style.flex=n; s.style.background=css(TYV[t]); s.textContent=n+' 台'; el.appendChild(s);});
+}
+
+/* anomaly */
+const N=sum(D.status);
+let rateKey='ab', devType='all', pwType='all';
+function drawStatus(){
+  make('c-status',{type:'bar',data:{labels:ST.map(s=>ZH[s]+' '+s),datasets:[{data:ST.map(s=>D.status[s]),backgroundColor:ST.map(s=>css('--'+s)),borderRadius:3}]},
+    options:baseOpts({indexAxis:'y',plugins:{...baseOpts().plugins,tooltip:{...baseOpts().plugins.tooltip,callbacks:{label:c=>fmt(c.raw)+' 筆（'+pct(c.raw,N)+'）'}}},scales:{...baseOpts().scales,x:{...baseOpts().scales.x,title:ax('紀錄筆數')}}})});
+}
+function drawRate(){
+  const T=['motor','pressure_gauge','temperature_sensor'];
+  const val=t=>{const g=D.types[t]; const ab=g.n-g.status.normal; return rateKey==='ab'?ab/g.n*100:g.status[rateKey]/g.n*100;};
+  make('c-rate',{type:'bar',data:{labels:T.map(t=>ZH[t]),datasets:[{data:T.map(val),backgroundColor:T.map(t=>css(TYV[t])),borderRadius:3}]},
+    options:baseOpts({plugins:{...baseOpts().plugins,tooltip:{...baseOpts().plugins.tooltip,callbacks:{label:c=>c.raw.toFixed(2)+'%'}}},
+      scales:{...baseOpts().scales,y:{...baseOpts().scales.y,title:ax(rateKey==='ab'?'異常率':rateKey+' 比例'),ticks:{...baseOpts().scales.y.ticks,callback:v=>v+'%'}}}})});
+}
+function drawDev(){
+  const all=D.devices; const list=(devType==='all'?all:all.filter(d=>d.type===devType)).slice().sort((a,b)=>b.ab-a.ab).slice(0,10);
+  const avg=all.reduce((a,d)=>a+d.ab,0)/all.length;
+  make('c-dev',{type:'bar',data:{labels:list.map(d=>d.id),datasets:[{data:list.map(d=>d.ab),backgroundColor:list.map(d=>css(TYV[d.type])),borderRadius:2}]},
+    options:baseOpts({indexAxis:'y',plugins:{...baseOpts().plugins,tooltip:{...baseOpts().plugins.tooltip,callbacks:{label:c=>c.raw+' 筆異常（'+ZH[list[c.dataIndex].type]+'）'}}},scales:{...baseOpts().scales,x:{...baseOpts().scales.x,title:ax('異常紀錄筆數')}}})});
+  const top=list[0];
+  document.getElementById('dev-note').innerHTML='';
+  const p=document.getElementById('dev-note');
+  p.append('最多 ',Object.assign(document.createElement('b'),{textContent:top.id+' '+top.ab+' 筆'}),'，45 台平均約 '+Math.round(avg)+' 筆，差距不大。');
+}
+/* energy */
+function drawShare(){
+  const T=['motor','pressure_gauge','temperature_sensor']; const tot=T.reduce((a,t)=>a+D.types[t].power_sum,0);
+  make('c-share',{type:'bar',data:{labels:T.map(t=>ZH[t]),datasets:[{data:T.map(t=>D.types[t].power_sum/tot*100),backgroundColor:T.map(t=>css(TYV[t])),borderRadius:3}]},
+    options:baseOpts({indexAxis:'y',plugins:{...baseOpts().plugins,tooltip:{...baseOpts().plugins.tooltip,callbacks:{label:c=>c.raw.toFixed(1)+'%（'+fmt(Math.round(D.types[T[c.dataIndex]].power_sum))+'）'}}},
+      scales:{...baseOpts().scales,x:{...baseOpts().scales.x,max:100,title:ax('占總耗電比例'),ticks:{...baseOpts().scales.x.ticks,callback:v=>v+'%'}}}})});
+}
+function drawPw(){
+  const list=(pwType==='all'?D.devices:D.devices.filter(d=>d.type===pwType)).slice().sort((a,b)=>b.pw-a.pw).slice(0,10);
+  make('c-pw',{type:'bar',data:{labels:list.map(d=>d.id),datasets:[{data:list.map(d=>d.pw),backgroundColor:list.map(d=>css(TYV[d.type])),borderRadius:2}]},
+    options:baseOpts({indexAxis:'y',plugins:{...baseOpts().plugins,tooltip:{...baseOpts().plugins.tooltip,callbacks:{label:c=>fmt(Math.round(c.raw))}}},scales:{...baseOpts().scales,x:{...baseOpts().scales.x,title:ax('總耗電值')}}})});
+  const p=document.getElementById('pw-note'); p.textContent='';
+  if(pwType==='all'){ const a=list[0].pw,b=list[list.length-1].pw; p.append('前 10 名全是馬達，第 1 名與第 10 名只差 ',Object.assign(document.createElement('b'),{textContent:((a-b)/b*100).toFixed(1)+'%'}),'。');}
+  else { p.append(ZH[pwType]+'最高也只有 ',Object.assign(document.createElement('b'),{textContent:fmt(Math.round(list[0].pw))}),'，約為一台馬達的 '+(list[0].pw/56000*100).toFixed(1)+'%。'); }
+}
+function drawHour(){
+  make('c-hour',{type:'line',data:{labels:D.motor_hour.map((_,i)=>i),datasets:[{data:D.motor_hour,borderColor:css('--motor'),backgroundColor:css('--motor'),pointRadius:2,tension:.25,fill:false}]},
+    options:baseOpts({plugins:{...baseOpts().plugins,tooltip:{...baseOpts().plugins.tooltip,callbacks:{title:c=>c[0].label+' 時',label:c=>'平均 '+c.raw.toFixed(1)}}},scales:{...baseOpts().scales,x:{...baseOpts().scales.x,title:ax('時（0–23）')},y:{...baseOpts().scales.y,title:ax('平均耗電值')}}})});
+}
+/* sensor */
+const TB=D.motor_temp_bins.bins;
+function tempCount(lo,hi){let n=0,st={normal:0,warning:0,error:0,offline:0};for(const k in TB){const b=+k;if(b>=lo&&b<hi){for(const s of ST){st[s]+=TB[k][s];n+=TB[k][s];}}}return {n,st};}
+function drawTemp5(){
+  const labels=[],vals=[],cols=[];
+  for(let t=30;t<110;t+=5){labels.push(t);vals.push(tempCount(t,t+5).n);cols.push(t>=80?css('--hot'):css('--normal'));}
+  make('c-temp5',{type:'bar',data:{labels,datasets:[{data:vals,backgroundColor:cols,borderRadius:2,categoryPercentage:.95,barPercentage:.95}]},
+    options:baseOpts({plugins:{...baseOpts().plugins,tooltip:{...baseOpts().plugins.tooltip,callbacks:{title:c=>c[0].label+'–'+(+c[0].label+5)+'°C',label:c=>fmt(c.raw)+' 筆'}}},scales:{...baseOpts().scales,x:{...baseOpts().scales.x,title:ax('溫度（°C，每 5 度一格）')},y:{...baseOpts().scales.y,title:ax('紀錄筆數')}}})});
+}
+function drawOH(){
+  const e=Object.entries(D.motor_overheat);
+  make('c-oh',{type:'bar',data:{labels:e.map(x=>x[0]),datasets:[{data:e.map(x=>x[1]),backgroundColor:css('--hot'),borderRadius:2}]},
+    options:baseOpts({indexAxis:'y',plugins:{...baseOpts().plugins,tooltip:{...baseOpts().plugins.tooltip,callbacks:{label:c=>c.raw+' 筆過熱'}}},scales:{...baseOpts().scales,x:{...baseOpts().scales.x,title:ax('過熱紀錄筆數（> 80°C）')}}})});
+}
+const VB=D.vib_bins;
+function vibAgg(dev,lo,hi){let n=0,st={normal:0,warning:0,error:0,offline:0};for(const k in VB[dev]){const v=+k*0.5;if(v>=lo&&v<hi){for(const s of ST){st[s]+=VB[dev][k][s];n+=VB[dev][k][s];}}}return {n,st};}
+function drawVibGrp(){
+  const g=[['低（< 2）',0,2],['中（2 – < 15）',2,15],['高（≥ 15）',15,99]].map(([l,a,b])=>{const r=vibAgg('pressure_gauge',a,b);return {l,rate:r.st.error/r.n*100,n:r.n,e:r.st.error};});
+  make('c-vibgrp',{type:'bar',data:{labels:g.map(x=>x.l),datasets:[{data:g.map(x=>x.rate),backgroundColor:g.map((x,i)=>i===2?css('--error'):css('--normal')),borderRadius:3}]},
+    options:baseOpts({plugins:{...baseOpts().plugins,tooltip:{...baseOpts().plugins.tooltip,callbacks:{label:c=>c.raw.toFixed(1)+'%（'+g[c.dataIndex].e+' / '+fmt(g[c.dataIndex].n)+' 筆）'}}},
+      scales:{...baseOpts().scales,x:{...baseOpts().scales.x,title:ax('震動分組')},y:{...baseOpts().scales.y,max:100,title:ax('error 比例'),ticks:{...baseOpts().scales.y.ticks,callback:v=>v+'%'}}}})});
+}
+
+const SC={"error":[[2.05,15.5],[3.7,16.7],[2.7,0.2],[1.85,15.1],[3.5,15.2],[4.25,17.0],[3.6,1.9],[2.7,16.2],[1.5,16.0],[2.5,15.1],[1.6,16.1],[2.4,0.8],[4.55,1.5],[3.05,1.8],[5.0,1.5],[4.8,0.8],[1.75,0.9],[1.75,0.1],[4.35,1.0],[4.6,15.7],[2.95,0.3],[3.5,15.4],[2.4,1.2],[1.05,0.4],[4.8,15.3],[4.45,16.0],[1.15,1.8],[1.45,1.8],[2.05,1.8],[2.7,0.4],[4.95,15.0],[4.75,1.7],[2.65,1.6],[2.2,0.4],[2.5,0.8],[1.4,0.4],[2.9,1.0],[3.75,0.3],[3.15,0.3],[1.2,1.0],[4.95,16.5],[1.0,1.7],[1.55,1.4],[4.95,0.3],[2.5,0.1],[3.7,1.1],[1.1,0.2],[2.6,15.2],[1.55,0.4],[4.65,0.9],[3.4,1.3],[3.05,1.4],[3.65,1.3],[1.65,0.2],[3.05,0.6],[4.3,2.0],[4.0,1.3],[2.1,1.7],[3.85,0.2],[4.85,1.6],[2.55,0.9],[3.7,1.0],[4.75,1.4],[1.1,15.6],[3.1,15.9],[4.85,1.1],[4.85,0.7],[4.75,0.2],[3.45,1.1],[1.45,15.7],[4.15,0.2],[1.65,15.5],[4.05,15.2],[1.35,15.9],[2.85,1.3],[3.65,16.1],[1.55,0.6],[4.25,1.4],[3.85,1.4],[3.5,16.4],[3.95,15.9],[2.75,16.0],[1.9,15.7],[1.95,0.3],[3.5,1.6],[3.25,16.4],[2.05,1.2],[3.85,1.7],[4.05,0.2],[1.5,1.4],[2.6,1.9],[1.6,1.8],[1.2,0.5],[2.25,0.9],[4.45,1.6],[4.45,15.2],[2.2,1.6],[4.75,16.3],[2.1,1.0],[2.3,0.9],[3.5,2.0],[2.1,15.5],[4.35,15.0],[2.3,15.1],[3.85,0.6],[4.0,15.4],[1.6,0.8],[3.95,0.8],[4.45,0.6],[3.6,15.2],[4.1,1.4],[4.55,1.1],[4.2,0.6],[4.65,16.2],[2.9,0.5],[1.25,15.3],[4.3,16.4],[2.15,15.2],[1.1,2.0],[4.35,1.7],[1.45,0.4],[4.55,0.1],[3.35,0.4],[3.15,0.7],[4.45,1.2],[3.0,16.0],[2.65,0.5],[4.5,0.9],[1.3,15.5],[1.45,1.7],[1.35,15.7],[3.8,1.6],[3.8,1.2],[1.65,1.3],[1.15,16.8],[2.3,15.9],[3.1,15.6],[2.75,1.1],[4.45,0.2],[1.5,16.6],[1.85,0.8],[2.9,0.3],[2.9,0.4],[1.35,1.8],[4.6,15.6],[1.55,9.5],[1.3,1.3],[1.15,15.5],[1.65,1.7],[4.3,0.9],[3.75,0.7],[4.1,0.8],[3.05,1.3],[1.2,16.7],[1.2,1.9],[4.8,15.6],[3.65,0.4],[4.5,1.1],[1.55,0.5],[1.85,0.4],[3.6,0.9],[1.3,16.9],[4.25,0.8],[2.35,0.2],[2.5,1.1],[3.2,0.3],[1.75,1.3],[4.5,13.4],[4.8,0.1],[3.65,16.4],[3.75,1.2],[2.8,0.3],[1.3,15.2],[4.7,15.4],[1.4,15.7],[1.0,1.6],[3.7,1.7],[3.5,1.9],[3.65,1.6],[1.8,0.9],[1.95,0.6],[1.75,15.5],[2.35,0.1],[4.25,1.6],[3.7,16.3],[1.2,1.6],[2.15,1.0],[2.5,13.4],[4.65,1.4],[1.1,15.0],[1.4,2.0],[4.9,1.6],[1.95,0.0],[4.05,1.2],[1.55,1.1],[4.1,15.1],[1.2,16.0],[4.65,0.1],[2.2,0.3],[2.2,1.4],[1.15,0.8],[1.75,1.2],[1.5,15.3],[3.75,0.4],[3.5,16.5],[4.85,15.9],[3.2,0.4],[4.6,0.3],[4.45,0.3],[1.35,0.4],[1.3,16.1],[4.35,0.6],[2.25,0.6],[1.8,1.2],[2.5,0.2],[4.65,15.5],[4.15,15.0],[3.35,1.9],[4.8,1.1],[1.95,1.2],[3.9,1.1],[4.75,0.8],[1.5,0.6],[2.15,0.7],[3.55,1.8],[2.2,0.8],[2.65,1.2],[3.9,16.4],[3.05,1.7],[4.6,16.5],[3.2,11.9],[1.1,0.9],[3.75,0.2],[2.4,1.1],[2.25,1.4],[4.15,2.0],[1.15,0.7],[2.6,15.0],[2.55,0.3],[4.2,0.7],[1.8,15.3],[2.15,15.5],[3.25,16.8],[4.7,1.8],[4.0,16.5],[4.0,0.4],[4.35,1.6],[3.45,16.0],[1.8,1.4],[1.15,0.9],[4.0,15.2],[1.3,1.6],[2.25,1.0],[4.6,1.8],[1.65,15.7],[4.95,1.3],[4.85,15.6],[1.45,1.1],[3.95,1.4],[4.85,2.0],[3.75,15.3],[4.55,2.0],[1.45,0.1],[1.85,0.1],[3.1,0.3],[1.5,16.5],[3.9,1.8],[1.7,11.1],[4.4,0.1],[3.05,15.4],[4.7,1.5],[4.2,16.2],[1.35,1.6],[2.75,1.9],[2.55,0.0],[1.5,0.5],[2.45,1.1],[4.0,0.9],[4.6,0.0],[4.85,0.8],[3.7,0.2],[2.8,15.6],[1.55,16.6],[4.4,1.2],[2.6,0.9],[1.9,15.5],[1.85,0.2],[2.95,17.0],[1.75,15.6],[4.9,0.1],[3.4,16.0],[4.9,15.8],[3.15,15.9],[1.2,15.4],[1.1,1.5],[1.95,1.3],[4.75,15.3],[3.9,16.7],[3.5,0.9],[3.3,15.6],[1.3,1.2],[4.45,1.4],[4.5,16.0],[3.15,2.0],[4.65,1.8],[1.9,1.6],[3.55,0.9],[4.9,1.0],[4.5,1.2],[3.55,15.4],[1.3,15.6],[2.05,16.6],[1.35,1.7],[4.85,0.1],[3.6,15.9],[4.35,15.3],[1.15,0.6],[4.9,15.6],[2.0,1.5],[3.1,0.0],[4.1,1.8],[4.15,0.7],[1.6,16.3],[1.25,15.4],[3.05,1.2],[3.05,15.3],[1.85,1.5],[1.25,1.5],[4.65,0.8],[3.85,1.3],[1.8,1.7],[1.75,13.1],[4.8,0.6],[1.7,15.2],[2.55,15.4],[4.9,13.5],[4.5,0.2],[2.0,15.6],[4.35,16.6],[4.25,2.0],[4.8,1.3],[4.85,16.0],[3.6,0.8],[4.65,1.5],[2.45,0.1],[4.95,1.8],[4.45,1.8],[3.25,15.6],[4.9,15.4],[3.95,1.1],[3.55,16.1],[3.95,16.9],[2.2,2.0],[4.35,0.2],[3.1,15.8],[5.0,1.6],[3.6,1.1],[3.65,16.3],[2.7,1.3],[4.0,1.9],[1.9,15.1],[1.75,0.2],[4.6,0.5],[4.85,1.9],[1.65,0.9],[3.3,16.0],[4.45,15.4],[1.55,1.5],[4.3,17.0],[3.15,15.3],[4.6,1.9],[1.65,1.1],[4.8,16.2],[3.4,1.8],[1.45,16.2],[1.7,15.5],[4.0,1.4],[4.65,0.3],[2.15,1.3],[2.5,0.6],[1.75,1.1],[1.0,16.2],[4.35,1.1],[2.9,15.3],[2.05,15.9],[2.6,2.0],[2.7,0.3]],"normal":[[1.15,1.4],[3.8,0.2],[2.9,1.1],[1.75,0.7],[2.3,1.6],[4.55,2.0],[1.65,0.6],[1.4,1.1],[1.4,0.1],[3.0,0.4],[4.9,0.2],[3.3,0.6],[2.55,1.9],[4.65,0.5],[1.45,1.2],[5.0,1.9],[1.35,1.6],[3.4,0.6],[1.8,0.2],[4.75,0.3],[3.0,0.5],[4.35,1.3],[1.1,0.9],[2.3,1.8],[2.8,0.8],[2.65,1.1],[2.35,0.4],[1.1,1.4],[3.95,9.1],[1.05,1.5],[2.25,1.2],[2.2,0.7],[4.9,0.7],[3.9,0.4],[2.8,1.4],[3.25,0.5],[4.3,1.2],[3.8,0.7],[4.1,0.9],[4.0,1.8],[4.4,1.3],[2.05,0.3],[4.35,0.4],[2.7,0.5],[2.25,1.4],[1.15,0.0],[3.35,0.8],[4.85,1.4],[1.2,1.7],[2.0,1.7],[3.3,0.3],[1.65,0.3],[1.75,1.8],[2.5,0.5],[1.05,1.3],[2.75,0.3],[4.15,0.6],[4.6,0.3],[4.8,1.2],[3.65,1.1],[4.35,0.9],[4.45,0.3],[4.5,0.3],[3.5,0.9],[3.25,0.9],[2.5,1.5],[4.8,0.0],[2.4,1.4],[1.5,1.5],[4.0,1.6],[4.7,2.0],[3.0,0.3],[1.15,0.8],[3.35,1.3],[2.6,0.9],[1.45,1.7],[5.0,1.7],[2.15,0.7],[1.2,0.8],[2.15,1.0],[4.35,0.0],[1.2,0.3],[3.8,0.9],[2.2,1.4],[3.15,0.5],[3.35,1.7],[3.7,1.2],[4.55,0.4],[4.05,0.4],[1.7,1.4],[2.05,1.0],[1.2,1.6],[2.5,1.0],[1.45,0.7],[2.4,0.9],[2.0,1.9],[4.65,1.6],[1.1,1.5],[2.2,1.6],[1.65,1.1],[2.05,1.6],[3.0,1.8],[3.6,1.7],[2.6,0.1],[2.9,0.1],[3.4,12.0],[4.8,0.3],[4.05,0.1],[4.55,1.6],[2.3,1.5],[3.35,1.9],[1.1,1.3],[3.75,0.4],[3.95,0.1],[2.9,1.2],[2.6,0.8],[2.6,0.2],[2.4,1.2],[3.0,1.6],[5.0,1.2],[4.4,0.0],[1.2,0.5],[4.4,0.2],[4.65,0.2],[4.95,1.9],[4.75,0.6],[1.4,14.4],[1.05,0.8],[1.15,0.5],[1.55,1.4],[3.35,1.4],[2.0,1.2],[3.95,1.5],[2.0,0.1],[4.35,0.8],[3.6,1.8],[1.1,0.1],[4.55,0.7],[1.1,1.2],[4.65,1.8],[4.35,1.6],[3.65,1.0],[1.35,5.0],[1.8,1.4],[3.8,1.0],[1.1,0.3],[2.7,1.7],[4.05,1.1],[1.85,0.1],[4.85,1.0],[4.1,0.2],[1.45,0.4],[3.15,1.8],[3.55,1.4],[2.0,0.5],[1.55,0.5],[3.6,0.8],[4.5,1.7],[3.0,0.6],[4.7,0.3],[1.45,0.8],[4.2,12.4],[3.25,0.8],[2.5,1.6],[4.05,1.7],[3.55,1.2],[3.05,1.0],[4.3,7.5],[3.1,0.6],[4.2,0.6],[5.0,0.8],[1.3,1.4],[1.65,0.7],[3.15,1.9],[4.0,0.5],[1.2,1.4],[2.75,1.9],[4.35,1.1],[2.05,1.8],[4.75,0.9],[4.95,0.8],[1.25,0.3],[2.35,0.6],[2.7,0.3],[2.6,0.6],[1.35,0.9],[2.65,0.7],[1.0,0.1],[4.6,2.0],[4.1,1.7],[2.35,1.3],[3.1,0.5],[1.3,1.2],[2.15,1.5],[4.7,0.1],[5.0,0.3],[1.65,0.4],[1.35,0.3],[1.9,1.5],[3.2,2.0],[3.85,1.0],[1.3,0.4],[3.15,1.3],[3.95,2.0],[1.25,0.9],[1.85,0.5],[4.05,1.9],[2.7,1.6],[3.45,1.8],[1.55,0.9],[1.9,1.4],[1.6,1.8],[3.3,1.6],[3.7,0.5],[1.7,1.2],[3.75,1.4],[2.6,1.1],[4.3,1.6],[2.15,1.6],[1.85,0.7],[1.85,0.8],[1.9,1.7],[3.05,0.6],[3.95,0.8],[3.9,0.6],[3.15,1.0],[2.35,1.4],[4.15,1.3],[3.85,0.1],[1.75,1.2],[3.1,1.1],[4.55,0.1],[2.65,0.6],[4.45,1.5],[4.3,1.4],[4.5,1.4],[1.4,0.7],[4.55,1.0],[2.55,0.5],[1.85,0.2],[3.2,0.2],[4.6,0.4],[3.35,1.0],[1.25,1.7],[1.5,1.3],[2.4,1.7],[4.4,0.3],[2.05,0.6],[3.55,0.2],[1.55,1.7],[3.35,8.6],[2.8,1.9],[3.45,0.1],[1.7,1.7],[3.25,0.2],[4.9,1.9],[4.3,1.0],[3.5,1.1],[3.0,1.4],[4.25,2.0],[4.3,1.9],[4.1,1.6],[1.15,1.1],[1.2,0.2],[3.15,2.0],[3.2,0.4],[4.15,1.8],[1.6,1.5],[1.05,0.5],[3.6,1.3],[3.5,0.5],[3.45,0.7],[3.15,1.2],[1.85,6.4],[1.2,1.2],[4.15,1.7],[3.2,1.0],[1.75,7.3],[3.15,0.6],[3.65,0.7],[1.9,0.4],[4.2,1.2],[3.7,1.8],[2.4,1.5],[3.35,0.0],[3.4,1.8],[4.45,1.8],[2.9,1.0],[2.7,0.7],[1.05,0.9],[4.0,1.3],[3.8,0.0],[3.6,0.4],[1.75,0.5],[1.75,0.8],[3.9,1.1],[1.25,1.0],[1.3,1.3],[3.8,1.6],[2.9,2.0],[4.9,1.6],[2.4,0.5],[3.3,0.2],[4.55,0.8],[1.45,0.3],[2.8,0.2],[1.9,0.1],[3.05,0.7],[1.4,1.6],[2.1,1.4],[1.85,1.7],[2.1,1.8],[1.2,0.0],[1.1,0.8],[1.4,1.9],[1.8,2.0],[2.3,0.4],[2.35,1.6],[3.5,1.8],[3.55,0.7],[4.55,0.6],[4.65,1.4],[3.95,1.1],[3.95,1.2],[3.95,0.7],[1.95,0.9],[4.1,1.0],[1.9,0.2],[4.9,1.8],[3.45,0.6],[2.0,1.5],[2.35,1.9],[2.15,11.3],[2.5,1.2],[3.85,1.5],[1.5,0.3],[1.05,0.6],[1.75,0.2],[3.3,1.8],[2.55,1.6],[1.3,0.9],[3.05,1.9],[3.75,1.2],[2.35,1.2],[1.55,2.0],[2.6,1.9],[4.8,0.9],[4.75,1.1],[2.8,1.8],[1.3,1.6],[3.6,1.4],[2.05,0.5],[4.1,1.9],[2.1,1.6],[1.75,1.1],[4.6,0.7],[2.85,0.9],[1.75,1.3],[4.6,1.6],[4.6,0.0],[2.2,1.8],[1.9,0.3],[3.6,1.9],[1.5,1.4],[1.7,1.5],[2.25,2.0],[3.05,7.9],[3.15,1.4],[4.0,1.5],[1.7,0.2],[2.4,1.9],[4.55,1.4],[3.65,0.3],[1.7,1.3],[4.65,1.5],[4.25,0.8],[1.1,0.7],[4.05,1.8],[4.35,8.6],[4.6,0.1],[2.0,0.6],[3.65,1.8],[1.5,1.8],[1.0,0.6],[3.15,7.4],[3.2,1.8],[3.85,0.4],[1.65,1.4],[2.3,0.6],[1.9,1.0],[1.9,1.6],[3.7,1.6],[3.85,1.9],[3.1,1.4],[1.05,1.0],[3.1,0.7],[3.8,0.8],[3.75,0.2],[3.85,1.4],[4.15,1.2],[1.5,0.9],[3.55,1.6],[4.0,0.4],[4.7,1.6],[2.6,1.6],[2.7,0.6],[1.75,0.1],[2.25,0.6],[3.95,1.8],[2.6,1.0],[2.3,1.2],[3.75,2.0],[1.5,0.5],[1.95,0.8],[1.85,0.4],[2.4,0.7],[3.7,0.8],[4.65,0.7],[2.95,0.4],[5.0,1.5],[2.45,0.4],[3.75,1.0],[2.2,0.6],[2.25,0.2],[2.65,1.4],[2.95,1.2],[3.6,0.6],[3.95,1.0],[2.15,0.4],[4.45,0.9],[2.85,1.8],[2.7,0.8],[4.95,1.8],[3.75,0.7],[3.5,1.0],[2.45,1.9],[4.4,0.6],[1.85,1.3],[4.5,0.4],[3.0,1.2],[1.95,1.8],[2.4,0.1],[3.6,0.3],[1.35,0.0],[1.05,0.4],[2.6,1.3],[4.05,0.0],[1.0,1.8],[2.1,10.9],[4.3,1.1],[3.95,1.3],[1.7,1.8],[2.4,0.4],[2.0,1.1],[2.5,0.8],[4.35,1.4],[3.35,0.3],[2.65,1.2],[3.5,1.5],[2.1,0.7],[1.5,1.0],[3.25,1.0],[3.4,11.2],[3.4,1.4],[3.85,1.6],[3.1,1.9],[3.05,1.3],[2.3,0.1],[4.8,1.4],[4.15,1.0],[1.85,1.1],[3.8,0.1],[1.85,1.2],[4.4,2.0],[2.25,0.5],[3.2,1.2],[2.9,1.5],[1.1,1.7],[2.75,0.8],[2.55,0.1],[1.35,0.6],[1.65,1.7],[3.9,0.3],[3.45,1.2],[4.1,0.0],[1.2,2.0],[2.6,1.7],[4.1,0.1],[4.9,0.9],[3.5,0.1],[3.85,0.7],[4.05,1.4],[1.8,1.3],[4.15,14.2],[2.4,1.6],[1.4,1.8],[4.05,1.5],[4.25,1.2],[2.9,0.3],[4.6,1.9],[4.05,1.3],[2.0,1.3],[2.8,0.6],[4.35,1.7],[3.05,0.4],[3.3,0.5],[2.45,1.0],[4.85,0.9],[2.55,0.3],[2.5,0.6],[4.0,1.2],[3.5,1.2],[1.15,1.2],[4.85,0.2],[4.15,1.1],[2.45,1.3],[3.55,14.5],[2.05,0.8],[1.25,1.1],[4.95,1.5],[3.7,1.3],[1.9,1.8],[2.45,1.4],[2.9,0.6],[2.15,0.5],[4.35,1.8],[2.4,0.8],[2.45,1.6],[2.9,1.9],[2.0,1.4],[1.95,0.2],[4.05,0.2],[2.85,1.4],[2.3,0.3],[2.9,1.8],[3.25,1.5],[4.8,1.0],[4.2,0.9],[4.2,0.7],[1.05,1.9],[3.55,1.3],[2.65,0.2],[1.15,0.9],[3.35,0.9],[4.5,1.9],[4.5,1.1],[2.25,1.0],[4.5,1.3],[3.85,2.0],[4.1,0.5],[1.0,1.2],[2.95,0.1],[4.5,0.7],[3.35,0.5],[2.9,0.8],[4.25,0.5],[1.7,0.8],[4.95,14.3],[2.65,1.8],[1.55,0.8],[1.6,0.9],[3.6,1.2],[4.35,1.5],[1.7,0.6],[4.05,0.5],[2.75,1.6],[4.55,0.5],[3.4,1.2],[3.05,1.5],[1.7,2.0],[3.65,0.4],[2.2,0.4],[2.8,1.1],[1.0,1.0],[3.2,1.9],[4.45,1.2],[2.25,1.8],[4.8,0.6],[4.2,1.3],[4.85,1.5],[1.8,0.8],[3.75,1.8],[3.6,2.0],[3.95,1.9],[3.25,1.6],[4.15,0.9],[2.05,0.7],[1.85,1.4],[2.65,1.7],[4.8,1.5],[2.65,2.0],[3.45,0.2],[4.45,2.0],[1.35,0.5],[4.6,0.9],[4.1,1.8],[3.9,1.4],[4.05,0.3],[4.75,0.4],[2.2,1.5],[3.7,2.0],[4.35,1.0],[2.7,1.8],[3.65,0.6],[4.9,1.1],[2.35,0.9],[2.95,1.6],[1.55,1.1],[1.6,11.5],[3.55,1.1],[3.65,0.8],[4.2,1.9],[2.95,1.5],[1.1,2.0],[4.2,1.8],[4.75,1.4],[2.7,0.4],[1.6,1.0],[2.8,0.4],[3.55,0.9],[2.2,0.2],[3.95,1.6],[3.4,1.3],[4.45,1.7],[4.85,1.2],[4.8,0.5],[2.5,1.4],[1.25,0.8],[4.25,0.2],[4.15,0.0],[1.4,0.5],[1.35,1.8],[2.95,1.7],[1.1,1.8],[3.45,1.6],[4.7,0.0],[3.6,0.0],[3.6,1.1],[3.3,1.3],[2.0,0.4],[1.55,1.5],[3.1,0.4],[3.8,1.5],[3.9,1.0],[3.3,0.7],[1.1,1.0],[1.5,1.6],[4.65,0.8],[1.2,1.0],[1.55,0.1],[1.35,2.0],[2.65,1.3],[4.15,1.6],[2.85,0.2],[4.65,0.6],[2.2,0.1],[3.3,1.0],[2.5,0.7],[3.55,1.5],[2.05,1.9],[1.65,0.9],[4.65,1.1],[4.95,10.5],[3.75,1.9],[3.85,1.3],[4.05,1.6],[2.15,0.6],[1.95,1.3],[2.15,0.8],[3.9,0.8],[4.4,0.7],[1.15,1.5],[3.25,14.1],[1.4,0.0],[4.3,0.9],[4.75,1.9],[2.55,0.8],[1.8,1.8],[3.05,1.2],[2.7,1.0],[1.2,1.5],[1.1,1.9],[4.95,8.2],[4.8,2.0],[3.95,0.0],[3.3,0.8],[3.25,1.2],[4.35,1.2],[1.25,1.5],[2.1,1.5],[1.8,1.2],[4.3,1.8],[2.1,0.1],[4.55,1.8],[4.0,1.4],[4.1,0.7],[1.3,0.8],[2.35,0.3],[2.7,0.2],[1.8,0.6],[1.05,1.1],[1.0,0.9],[1.45,0.6],[4.25,1.3],[4.5,1.6],[1.2,1.1],[2.95,0.7],[4.95,1.3],[1.8,6.5],[1.85,0.3],[2.15,1.4],[1.4,0.8],[2.15,1.1],[2.95,1.0],[2.15,0.3],[1.0,1.7],[4.6,0.6],[1.05,1.7],[3.6,1.0],[4.65,1.0],[2.95,1.3],[3.85,1.1],[3.65,8.6],[2.2,1.3],[1.35,1.4],[3.1,1.7],[3.45,0.8],[1.25,0.6],[4.25,0.3],[2.35,1.8],[1.95,1.4],[4.1,1.1],[4.3,0.1],[1.75,1.7],[1.05,1.2],[2.45,0.5],[3.45,1.4],[4.15,1.9],[2.55,1.0],[3.0,0.0],[1.1,0.6],[2.35,1.1],[1.75,2.0],[1.65,1.2],[3.35,11.4],[3.1,0.8],[3.05,0.8],[2.75,1.5],[3.95,0.6],[3.45,1.3],[1.7,1.6],[4.05,0.8],[2.2,1.0],[3.05,1.4],[3.7,1.9],[4.55,0.9],[2.6,0.7],[4.75,1.8],[4.0,1.7],[2.8,1.5],[1.35,1.5],[4.4,1.7],[2.1,0.8],[1.25,1.9],[3.2,1.6],[2.55,1.3],[4.8,1.9],[4.65,9.3],[2.6,1.8],[1.6,1.4],[4.9,1.4],[4.3,11.5],[1.45,2.0],[2.1,1.7],[1.4,2.0],[2.3,1.3],[4.9,1.0],[1.1,0.4],[1.55,1.2],[1.45,1.1],[3.35,11.9],[3.25,1.1],[2.9,0.9],[1.15,0.4],[4.4,12.4],[3.4,1.1],[1.95,0.6],[1.45,1.4],[2.05,0.2],[1.4,1.7],[1.9,2.0],[2.75,1.7],[1.8,0.7],[1.05,0.2],[1.7,12.2],[4.45,1.4],[4.2,0.1],[1.2,1.3],[3.65,1.2],[2.0,1.0],[2.2,1.9],[1.85,1.0],[3.05,2.0],[1.3,1.9],[3.35,0.7],[3.65,0.2],[2.95,1.9],[2.85,0.6],[1.4,0.3],[4.05,1.2],[2.1,0.2],[2.4,1.8],[2.65,1.6],[4.95,0.5],[4.85,1.3],[1.75,1.0],[1.65,0.0],[3.3,0.1],[4.7,1.5],[3.35,0.1],[3.15,0.1],[1.4,1.0],[2.75,13.1],[4.4,1.6],[2.3,1.9],[4.2,0.0],[4.95,14.5],[4.7,0.6],[1.75,1.9],[4.9,0.8],[1.1,8.7],[3.25,1.3],[3.1,0.2],[3.8,13.1],[4.3,1.3],[4.7,0.5],[2.45,0.0],[4.8,0.1],[4.4,0.5],[3.3,2.0],[1.55,0.6],[1.4,1.2],[3.7,0.6],[4.8,1.6],[1.9,12.9],[3.6,0.5],[4.1,0.4],[4.75,0.2],[3.2,0.1],[3.4,1.0],[4.5,1.2],[4.3,0.4],[1.4,0.4],[1.6,0.4],[2.3,0.2],[2.2,0.9],[4.75,0.0],[3.05,1.7],[4.15,0.5],[2.9,0.0],[3.85,0.8],[3.6,1.5],[4.4,10.6],[2.85,1.9],[3.4,1.9],[3.55,1.7],[4.5,0.8],[3.35,1.5],[3.5,1.7],[2.3,0.8],[4.6,0.5],[1.6,0.1],[2.3,1.0],[1.45,1.8],[2.9,1.4],[2.0,0.2],[4.6,0.8],[4.5,1.0],[3.2,1.1],[1.45,0.5],[3.4,1.7],[4.2,1.6],[3.75,0.9],[2.05,1.4],[3.9,2.0],[2.4,0.2],[4.5,0.6],[2.85,0.7],[4.9,0.4],[1.15,0.1],[4.95,1.2],[3.85,0.5],[3.95,1.7],[2.45,0.9],[4.6,0.2],[2.7,7.4],[3.35,0.2],[1.45,1.9],[3.05,0.3],[1.5,1.1],[4.2,1.4],[1.95,0.5],[1.35,1.2],[2.5,0.3],[4.05,1.0],[3.85,0.6],[3.0,1.0],[3.25,0.3],[3.9,1.3],[4.35,0.2],[1.8,0.4],[4.95,0.6],[3.85,0.0],[4.35,0.6],[2.45,13.3],[2.6,1.4],[2.75,1.2],[1.6,0.2],[2.55,6.7],[3.75,0.3],[3.7,0.9],[1.45,0.2],[3.05,1.8],[5.0,0.2],[2.8,1.0],[3.8,1.2],[2.2,1.7],[4.2,1.5],[2.9,0.5],[4.3,0.6],[4.1,1.5],[3.5,0.7],[3.65,1.9],[1.95,2.0],[2.0,2.0],[2.7,1.2],[1.55,0.4],[2.95,1.1],[3.0,1.5],[3.65,1.4],[4.6,1.1],[4.1,0.6],[4.0,0.6],[2.35,0.8],[3.55,1.0],[2.15,1.7],[3.8,0.6],[2.05,1.5],[1.55,1.6],[4.75,1.2],[5.0,2.0],[2.7,1.9],[2.0,1.6],[1.55,1.0],[1.8,1.0],[4.7,0.4],[2.55,1.5],[1.75,0.4],[2.45,0.6],[1.75,0.3],[2.05,0.1],[3.8,1.4],[3.8,1.8],[3.75,1.3],[3.3,1.1],[1.7,0.9],[4.85,0.8],[1.3,0.6],[2.8,0.3],[2.8,1.3],[4.4,1.0],[3.1,1.0],[2.75,1.1],[1.7,7.2],[2.8,0.0],[4.7,0.2],[3.2,0.8],[2.1,0.6],[3.65,0.9],[1.45,1.5],[2.8,0.1],[4.0,0.2],[3.6,0.1],[1.95,1.7],[2.35,0.2],[1.5,0.8],[2.5,1.9],[4.0,0.3],[4.75,11.8],[3.95,0.2],[1.65,1.8],[4.45,0.4],[4.15,0.2],[1.1,0.0],[2.5,10.0],[1.9,1.2],[1.45,0.0],[3.55,0.8],[3.5,0.2],[4.8,1.3],[4.0,6.4],[3.95,0.5],[3.75,1.5],[2.15,1.9],[3.25,0.1],[4.5,0.1],[4.4,0.9],[4.75,0.8],[3.2,0.9],[4.85,1.9],[2.8,1.2],[2.6,0.5],[1.55,0.3],[1.35,0.2],[3.1,1.6],[2.25,1.5],[2.05,1.1],[1.85,8.4],[1.8,0.0],[4.85,1.8],[2.75,2.0],[2.25,0.8],[1.4,14.6],[3.95,5.1],[1.95,1.9],[2.55,0.9],[2.35,1.7],[3.85,0.2],[2.7,1.3],[4.85,13.9],[4.2,0.5],[4.25,1.4],[2.2,1.1],[4.3,1.7],[1.05,0.7],[4.75,0.5],[4.1,1.2],[4.35,0.7],[2.5,0.2],[2.9,0.2],[1.75,8.3],[3.2,1.4],[4.25,1.5],[2.25,1.6],[1.05,0.1],[1.15,1.7],[2.85,1.5],[2.85,1.2],[4.55,0.2],[4.2,0.4],[2.65,1.0],[3.4,0.8],[2.75,1.4],[3.45,1.5],[4.7,0.7],[5.0,1.8],[4.35,0.5],[4.25,1.0],[3.0,1.9],[1.5,1.7],[1.2,14.0],[4.95,2.0],[4.55,1.2],[1.6,1.2],[4.05,0.9],[1.65,1.6],[1.6,0.8],[3.2,1.7],[5.0,1.0],[3.0,1.3],[1.0,0.8],[4.65,1.2],[3.5,1.3],[4.1,2.0],[2.6,0.0],[3.25,1.7],[5.0,13.7],[4.35,0.3],[3.65,1.3],[1.2,6.5],[2.45,0.8],[4.25,1.1],[1.55,1.9],[2.45,1.8],[4.4,0.8],[4.45,0.2],[2.8,9.3],[2.65,0.1],[4.6,1.3],[4.55,13.4],[4.6,1.7],[1.1,0.2],[3.15,0.4],[1.2,1.9],[2.35,0.1],[1.6,1.3],[2.2,1.2],[3.0,1.7],[2.75,0.0],[2.2,0.8],[2.1,8.0],[2.0,1.8],[2.35,1.0],[2.05,0.4],[4.0,1.0],[4.2,0.3],[2.55,1.7],[4.15,1.4],[1.15,1.0],[3.9,1.5],[2.05,11.0],[4.7,1.4],[4.3,1.5],[1.3,1.7],[5.0,0.6],[1.75,0.9],[4.6,1.2],[4.5,0.9],[4.7,0.8],[3.45,0.4],[1.15,1.6],[1.25,1.8],[4.85,0.1],[3.2,0.3],[2.75,0.5],[1.2,1.8],[4.2,1.0],[2.1,1.1],[3.15,0.2],[1.9,0.9],[1.3,0.2],[2.55,0.2],[2.8,1.6],[3.05,0.1],[3.75,1.6],[4.0,0.8],[4.45,1.0],[1.55,14.2],[4.25,0.4],[2.9,1.7],[2.4,1.3],[1.85,2.0],[4.9,1.2],[1.25,1.6],[3.0,0.8],[4.5,1.8],[4.45,0.8],[5.0,1.4],[3.1,1.8],[3.3,1.4],[2.65,1.5],[1.65,1.3],[1.9,0.0],[4.1,1.3],[4.3,0.5],[4.95,0.1],[4.4,1.9],[2.0,0.9],[1.65,0.2],[1.6,0.5],[4.3,0.2],[4.85,0.7],[1.2,0.1],[4.95,0.2],[2.95,0.9],[4.3,0.8],[4.65,1.7],[3.45,0.9],[2.65,0.4],[4.8,0.7],[1.15,1.9],[4.55,1.1],[1.85,0.6],[3.95,0.4],[3.8,2.0],[2.6,1.5],[4.9,0.1],[4.3,2.0],[1.95,0.0],[3.15,0.3],[2.55,0.6],[4.5,0.2],[3.0,6.7],[1.95,1.1],[1.15,1.8],[2.15,1.3],[1.8,0.3],[4.25,0.1],[4.35,0.1],[4.5,0.0],[4.5,0.5],[3.15,1.1],[2.3,1.4],[1.35,1.0],[3.25,0.6],[3.5,2.0],[4.55,1.9],[2.95,1.4],[4.8,0.2],[2.25,1.1],[3.25,0.7],[3.75,7.6],[4.45,0.6],[3.1,1.5],[3.4,1.6],[1.75,0.6],[1.9,1.1],[2.15,0.1],[4.15,0.3],[3.9,1.6],[2.65,0.8],[1.6,12.5],[1.5,0.6],[2.85,0.4],[4.05,0.6],[2.65,0.3],[1.7,14.4],[3.45,0.3],[2.85,0.8],[3.7,0.7],[2.65,0.9],[1.1,0.5],[4.0,7.2],[5.0,1.6],[3.4,0.0],[4.9,0.0],[2.7,1.1],[4.25,1.9],[4.75,1.5],[1.6,2.0],[3.95,0.3],[4.15,0.8],[3.55,10.7],[1.45,1.6],[4.55,1.5],[4.9,1.7],[2.05,2.0],[2.25,1.9],[4.7,1.1],[2.15,0.2],[1.65,0.1],[5.0,0.4],[1.15,0.7],[3.9,0.1],[1.4,1.3],[3.5,1.6],[1.1,1.6],[4.7,1.8],[3.35,1.2],[4.4,1.2],[3.9,1.2],[3.85,12.0],[2.0,0.7],[4.8,0.8],[3.25,1.9],[1.7,0.1],[4.65,0.4],[2.9,6.7],[4.95,1.6],[2.8,0.5],[4.8,1.1],[1.5,6.2],[3.75,0.1],[3.7,1.4],[4.4,0.1],[2.55,0.7],[3.0,0.9],[1.85,0.9],[2.55,14.6],[4.9,0.5],[3.8,1.1],[2.75,0.4],[1.2,0.9],[1.35,1.1],[2.9,13.6],[4.45,0.1],[2.85,1.6],[1.25,0.4],[3.15,0.7],[1.95,0.3],[1.7,0.4],[2.1,2.0],[3.05,0.0],[4.8,1.8],[4.0,0.9],[3.7,1.0],[3.0,10.2],[4.9,1.5],[3.3,0.4],[4.25,1.7],[4.25,0.6],[4.15,0.7],[4.0,0.7],[4.8,0.4],[2.25,0.3],[1.2,0.4],[2.65,11.8],[3.3,0.0],[2.75,1.8],[4.6,1.8],[2.35,0.5],[1.0,7.7],[4.8,1.7],[4.65,6.7],[3.05,0.5],[4.45,0.7],[4.1,1.4],[1.9,0.7],[3.65,0.0],[3.1,2.0],[2.4,0.0],[3.95,0.9],[2.15,1.8],[2.35,0.7],[2.75,0.6],[2.3,0.0],[2.3,1.7],[4.4,1.8],[1.9,0.8],[1.4,0.6],[3.75,14.1],[1.4,1.4],[4.3,11.8],[4.4,1.5],[3.75,0.6],[1.95,1.0],[4.85,1.1],[2.6,2.0],[4.1,0.8],[3.35,1.1],[2.95,0.5],[4.95,1.0],[3.0,2.0],[4.35,1.9],[1.6,1.6],[2.45,6.6],[4.85,0.5],[3.0,1.1],[2.55,1.2],[2.65,0.5],[2.1,1.2],[4.85,0.4],[2.7,6.9],[1.95,0.4],[2.8,0.9],[1.45,1.3],[2.8,2.0],[3.7,0.3],[3.1,0.3],[3.4,0.7],[4.1,6.6],[3.85,1.2],[1.15,0.2],[2.0,9.4],[1.15,0.3],[1.7,1.1],[4.1,9.7],[3.75,1.1],[3.4,0.3],[1.3,0.0],[1.0,1.5],[4.7,14.1],[2.9,1.6],[1.8,0.1],[3.75,0.8],[3.05,1.6],[2.6,12.0],[1.65,1.9],[3.55,0.4],[1.3,0.7],[2.3,1.1],[3.8,0.4],[2.15,1.2],[2.7,0.9],[2.1,1.0],[1.05,1.4],[1.55,1.3],[1.6,0.7],[1.35,0.8],[2.5,1.1],[1.15,0.6],[4.25,1.6],[1.8,9.0],[2.25,1.3],[4.75,1.0],[3.65,1.7],[1.45,7.2],[3.1,0.0],[4.75,1.6],[4.6,1.4],[1.3,1.1],[3.05,0.9],[4.45,0.0],[2.1,13.1],[2.5,1.8],[2.4,1.0],[1.05,1.6],[1.7,1.9],[4.45,1.6],[2.8,1.7],[3.8,0.5],[2.0,0.8],[2.95,0.8],[2.85,2.0],[4.4,1.1],[3.2,9.5],[1.7,0.5],[4.2,6.4],[3.55,1.8],[5.0,0.5],[3.15,1.6],[3.7,0.2],[2.85,0.3],[1.35,0.4],[3.95,1.4],[3.1,1.2],[3.6,1.6],[1.95,0.1],[3.1,0.9],[4.7,1.0],[4.95,0.7],[3.65,1.6],[3.65,0.5],[1.3,1.5],[1.6,1.9],[2.8,0.7],[3.7,1.7],[1.7,5.9],[4.85,0.3],[1.0,1.9],[2.05,1.3],[1.4,1.5],[3.55,0.0],[4.65,0.0],[4.15,7.3],[3.85,1.7],[2.5,0.1],[3.6,0.7],[1.35,0.1],[2.55,1.8],[2.35,1.5],[1.45,1.0],[4.4,1.4],[3.15,1.5],[3.05,7.7],[4.85,1.7],[4.95,0.4],[4.9,1.3],[1.95,1.6],[2.95,0.3],[1.0,10.8],[1.65,0.8],[4.95,0.9],[3.55,2.0],[3.35,0.6],[1.7,0.7],[2.95,0.0],[1.9,0.5],[1.35,1.9],[1.6,0.3],[2.95,2.0],[2.55,0.0],[4.2,0.2],[3.2,0.0],[3.9,0.7],[3.5,0.3],[4.0,0.1],[1.2,0.7],[2.55,1.4],[2.2,0.3],[3.4,0.5],[2.15,0.9],[1.3,1.0],[3.25,0.4],[1.5,12.5],[4.25,1.8],[4.55,0.3],[1.3,0.1],[4.9,2.0],[3.65,2.0],[4.65,0.1],[2.95,0.2],[2.65,14.1],[3.5,1.4],[4.85,0.0],[1.85,1.6],[3.4,14.8],[1.5,0.7],[3.15,0.8],[1.25,0.7],[1.0,2.0],[1.7,1.0],[1.85,1.5],[3.4,1.5],[1.6,9.1],[2.5,0.9],[2.7,0.0],[4.0,0.0],[2.35,2.0],[3.3,1.7],[1.25,1.3],[3.05,5.9],[4.75,0.7],[4.3,13.4],[4.4,0.4],[2.1,0.3],[3.85,1.8],[3.15,1.7],[2.9,0.7],[3.35,0.4],[2.85,1.1],[4.25,0.9],[2.4,0.6],[2.5,1.7],[2.85,1.3],[4.55,13.0],[1.25,0.5],[3.0,6.1],[3.55,0.3],[3.55,0.5],[2.25,0.7],[3.05,1.1],[4.45,1.3],[2.85,1.7],[2.75,0.2],[4.65,11.4],[2.05,1.2],[4.75,0.1],[3.45,1.1],[4.3,8.0],[2.6,10.4],[4.3,0.0],[1.5,1.2],[1.3,5.6],[1.5,0.1],[3.9,0.5],[3.6,0.9],[4.4,10.1],[1.05,0.3],[1.6,0.6],[3.15,0.9],[3.4,0.2],[1.6,1.1],[1.0,5.8],[4.75,13.3],[3.4,0.4],[3.8,1.3],[4.7,1.3],[3.85,13.9],[3.85,0.9],[1.0,0.3],[4.05,0.7],[2.35,0.0],[3.7,1.5],[4.6,1.0],[3.6,0.2],[3.2,0.7],[3.6,6.0],[1.9,0.6],[4.95,12.6],[3.8,0.3],[1.0,0.4],[1.9,1.3],[3.25,2.0],[2.85,0.1],[3.9,1.8],[4.2,1.7],[1.65,2.0],[2.1,10.3],[2.85,0.5],[4.9,0.6],[4.3,0.3],[4.95,0.3],[3.5,1.9],[4.0,1.1],[3.2,1.3],[3.35,1.8],[2.85,1.0],[4.55,0.0],[4.7,0.9],[2.15,0.0],[4.85,2.0],[2.45,0.2],[4.5,2.0],[4.65,1.3],[4.2,10.7],[4.7,1.9],[2.3,9.9],[2.1,1.3],[3.65,1.5],[2.45,1.7],[4.2,6.6],[4.75,2.0],[2.45,1.1],[2.75,1.0],[3.5,11.2],[4.95,1.1],[1.6,13.9],[1.65,1.0],[4.15,10.2],[2.2,0.5],[3.55,0.1],[1.35,0.7],[1.7,0.0],[2.55,1.1],[1.95,8.3],[2.75,5.4],[1.7,0.3],[4.0,10.7],[3.55,0.6],[1.25,0.1],[1.0,1.1],[4.6,1.5],[3.45,0.0],[1.25,1.4],[3.3,0.9],[2.55,12.0],[4.65,0.9],[4.0,1.9],[1.1,1.1],[2.6,0.4],[2.7,1.4],[4.2,0.8],[1.55,0.2],[4.5,1.5],[1.9,1.9],[3.75,0.5],[2.6,13.6],[4.8,14.2],[1.45,0.1],[3.85,0.3],[3.4,0.9],[1.2,0.6],[1.0,0.2],[1.8,0.5],[3.2,0.5],[1.75,1.6],[3.4,2.0],[3.7,0.1],[2.1,0.5],[2.3,8.7],[1.8,0.9],[2.7,1.5],[3.85,12.9],[3.75,1.7],[4.85,0.6],[1.85,1.8],[4.2,9.6],[3.2,0.6],[4.4,14.5],[3.25,1.8],[1.45,0.9],[1.95,1.2],[1.65,0.5],[1.3,2.0],[1.3,0.5],[4.15,1.5],[2.1,0.9],[3.45,1.0],[2.3,5.4],[4.35,10.6],[2.5,13.1],[4.85,12.3],[1.85,0.0],[3.0,0.2],[4.4,14.9],[3.45,8.3],[2.05,0.9],[1.65,1.5],[1.35,1.3],[3.25,7.6],[4.35,13.2],[1.75,1.5],[2.65,11.5],[2.9,0.4],[1.1,7.2],[4.95,1.4],[1.5,0.4],[1.85,1.9],[1.65,6.4],[2.45,1.2],[3.65,10.6],[4.45,8.6],[3.2,1.5],[1.55,0.7],[2.1,0.0],[2.05,0.0],[3.3,10.1],[1.15,12.2],[1.0,1.4],[2.25,0.1],[2.0,0.0],[4.05,9.5],[3.05,0.2],[2.6,0.3],[1.15,1.3],[1.3,1.8],[2.45,1.5],[4.65,14.9],[2.75,1.3],[3.3,1.9],[1.85,14.0],[1.75,1.4],[2.75,0.7],[3.9,1.7],[2.25,1.7],[4.9,13.9],[3.9,0.2],[4.65,1.9],[2.7,0.1],[2.2,0.0],[1.4,0.9],[1.0,0.5],[4.05,8.5],[4.55,9.5],[2.85,9.1],[2.15,2.0],[1.45,6.3],[3.45,1.7],[1.05,1.8],[2.05,10.5],[4.2,1.1],[2.45,7.1],[3.6,9.1],[1.5,0.2],[1.3,12.4],[3.65,0.1],[2.1,12.0],[1.8,1.1],[5.0,0.7],[1.95,1.5],[1.15,2.0],[1.45,9.3],[2.6,1.2],[2.95,0.6],[4.45,0.5],[4.2,2.0],[2.75,0.9],[2.05,1.7],[2.55,2.0],[2.3,10.9],[4.55,1.3],[3.15,0.0],[4.95,0.0],[4.7,1.7],[3.3,1.2],[3.5,0.4],[1.5,10.9],[1.35,1.7],[2.1,1.9],[3.45,1.9],[3.5,0.0],[3.5,0.6],[1.9,12.4],[4.25,0.7],[2.3,2.0],[1.8,1.7],[1.25,0.0],[4.35,6.3],[1.05,2.0],[1.25,1.2],[2.5,1.3],[2.3,0.5],[4.5,13.4],[3.25,1.4],[1.2,9.2],[1.45,12.7],[4.45,1.1],[2.5,0.4],[2.4,1.1],[1.35,6.0],[4.55,11.8],[1.55,7.8],[2.25,10.2],[4.1,0.3],[4.85,13.7],[4.75,12.0],[2.1,0.4],[1.5,0.0],[4.05,12.4],[3.8,1.9],[3.8,12.1],[2.4,13.6],[4.75,1.7],[1.75,12.2],[4.7,8.7],[3.8,9.3],[3.1,0.1],[4.8,12.5],[3.7,1.1],[3.3,1.5],[4.4,13.0],[2.25,0.9],[4.15,2.0],[3.1,1.3],[3.5,6.1],[2.65,1.9],[5.0,1.1],[1.25,0.2],[3.35,1.6],[1.3,0.3],[3.55,1.9],[1.1,12.7],[3.3,11.6],[1.75,0.0],[2.4,5.6],[1.75,10.5],[2.9,8.0],[4.6,13.0],[5.0,1.3],[4.55,1.7],[1.75,7.7],[3.15,8.6],[3.0,0.7],[2.3,0.9],[3.3,12.8],[3.85,10.5],[1.2,10.1],[3.45,6.6],[3.9,1.9],[1.0,1.3],[1.8,13.4],[2.2,5.1],[4.95,1.7],[4.2,8.9],[3.0,0.1],[2.75,0.1],[5.0,0.0],[2.55,12.2],[4.95,8.3],[1.8,1.6],[4.2,11.7],[4.7,1.2],[2.25,0.4],[2.8,14.0],[3.5,0.8],[4.9,0.3],[3.2,13.6],[4.1,6.5],[2.8,9.6],[1.25,2.0],[4.3,0.7],[1.0,0.7],[1.5,1.9],[3.6,11.5],[2.1,5.8],[2.85,9.7],[2.5,0.0],[1.5,9.4],[2.95,1.8],[2.0,0.3],[2.3,10.3],[1.85,14.7],[4.7,13.9],[2.65,12.0],[3.85,7.1],[2.9,10.7],[1.85,11.1],[4.35,2.0],[2.7,12.8],[1.3,13.3],[4.85,1.6],[3.8,1.7],[3.7,0.0],[4.7,14.5],[4.15,0.1],[1.55,1.8],[2.7,7.8],[2.35,5.6],[2.45,0.1],[5.0,14.0],[4.45,1.9],[2.05,6.4],[2.45,0.7],[4.75,1.3],[2.3,0.7],[3.9,0.0],[4.0,9.8],[3.75,0.0],[3.6,6.9],[1.85,7.0],[1.1,11.6],[3.45,0.5],[3.0,14.6],[2.25,0.0],[2.45,0.3],[3.0,13.8],[2.55,10.9],[1.6,7.8],[3.8,5.8],[4.65,0.3],[1.65,13.4],[3.95,12.4],[2.25,10.9],[3.75,11.2],[4.9,8.0],[4.2,11.4],[5.0,10.3],[1.6,12.6],[1.9,10.7],[3.7,0.4],[4.15,0.4],[3.75,7.1],[2.15,8.7],[4.95,14.2],[2.7,6.6],[1.4,14.3],[4.0,2.0],[4.45,14.9],[1.75,11.7],[3.55,6.8],[2.65,14.3],[2.7,10.1],[3.0,9.5],[5.0,0.9],[3.25,8.2],[2.55,0.4],[3.9,0.9],[1.45,11.7],[2.2,2.0],[4.55,9.7],[1.6,13.8],[3.55,6.5],[2.4,6.2],[1.95,0.7],[4.75,13.8],[2.0,8.5],[2.85,0.0],[4.55,5.8],[4.1,10.7],[2.55,6.1],[1.5,6.1],[1.95,12.0],[1.15,9.2],[1.15,13.1],[1.05,0.0],[2.15,6.6],[3.35,2.0],[1.55,9.0],[1.55,12.3],[1.5,13.6],[4.0,6.0],[1.65,11.0],[4.35,13.3],[2.25,14.2],[4.8,13.6],[4.65,9.1],[1.25,12.2],[4.95,13.5],[2.4,0.3],[3.4,0.1],[2.0,6.9],[4.8,6.7],[4.35,5.9],[4.1,6.3],[2.25,10.0],[2.85,6.4],[1.4,0.2],[3.75,12.6],[2.9,1.3],[2.9,8.1],[1.6,0.0],[4.45,12.5],[3.5,8.0],[3.95,9.7],[1.55,0.0],[1.5,2.0],[2.0,5.3],[1.4,9.2],[2.2,8.4],[4.0,10.2],[1.6,11.0],[1.75,5.5],[1.8,1.5],[4.65,12.6],[3.75,12.9],[3.3,8.8],[4.45,11.2],[3.85,8.8],[4.55,6.4],[3.4,6.7],[2.4,11.9],[4.95,14.8],[4.8,14.0],[3.55,12.5],[3.5,14.2],[4.0,8.7],[4.65,13.0],[2.0,6.8],[2.5,2.0],[2.0,6.0],[1.0,0.0],[3.65,14.2],[1.0,1.6],[1.7,5.6],[4.85,6.6],[3.4,9.3],[4.35,13.8],[3.85,12.8],[4.3,8.6],[2.45,9.2],[2.4,2.0],[3.6,6.3],[1.6,1.7],[1.15,14.7],[2.7,9.1],[2.75,7.7],[2.95,12.2],[3.25,0.0],[1.7,6.6],[4.65,2.0],[3.9,10.3],[2.65,0.0],[1.85,8.1],[2.25,5.9],[4.85,8.6],[1.5,12.8],[1.05,7.4],[1.3,6.8],[2.2,5.7],[4.5,14.7],[3.65,7.8],[2.1,7.4],[3.65,8.1],[4.95,6.9],[3.35,5.1],[3.55,7.8],[3.0,8.4],[3.25,7.8],[2.45,2.0],[2.15,9.7],[4.9,5.8],[3.85,13.3],[2.55,6.8],[1.4,12.3],[2.25,7.1],[1.6,5.3],[4.65,14.0],[1.8,1.9],[2.1,6.7],[2.65,9.0],[2.85,9.5],[4.1,7.7],[1.7,11.7],[1.6,8.4],[3.05,11.2],[4.25,0.0],[1.0,11.1],[2.8,13.0],[3.1,10.6],[2.4,12.0],[1.45,6.9],[4.3,12.0],[3.15,14.9],[1.8,10.5],[1.15,9.5],[3.95,9.0],[4.8,11.3],[1.75,8.4],[1.15,13.5],[1.5,9.3],[4.05,15.0],[1.0,12.1],[3.3,14.2],[2.1,10.8],[3.85,11.2],[4.45,8.0],[4.2,12.8],[2.4,9.4],[4.1,7.3],[4.5,14.1],[2.55,7.4],[1.45,13.6],[4.6,11.7],[3.9,8.4],[3.8,14.5],[4.0,5.2],[3.15,12.3],[3.2,7.1],[1.85,8.2],[1.5,7.3],[2.3,9.8],[4.2,14.0],[2.5,8.4],[1.65,14.0],[2.1,11.4],[3.8,7.1],[2.7,14.4],[2.2,12.0],[2.9,10.2],[4.3,6.8],[2.95,5.6],[1.8,9.6],[3.2,7.6],[3.65,14.7],[2.25,14.4],[2.75,9.2],[1.95,7.5],[4.4,6.5],[4.0,8.1],[4.55,12.8],[2.05,11.4],[3.45,2.0],[2.1,8.4],[2.4,11.8],[3.35,11.3],[3.25,11.5],[2.45,12.5],[1.75,13.8],[4.55,5.3],[4.9,7.9],[3.65,10.5],[3.35,12.0],[2.15,5.7],[4.45,13.4],[3.15,14.2],[2.85,11.2],[2.9,12.6],[1.6,9.0],[2.1,11.3],[2.4,12.2],[3.65,6.1],[4.8,6.4],[4.7,6.6],[3.8,14.4],[1.15,13.4],[3.75,13.7],[5.0,0.1],[3.35,15.0],[1.2,13.5],[4.8,10.8],[2.55,7.3],[2.65,12.8],[4.15,13.5],[1.1,6.9],[1.2,7.9],[4.05,2.0],[2.9,10.5],[4.3,12.2],[4.35,14.1],[4.1,9.0],[4.1,8.1],[4.15,5.9],[3.45,14.9],[1.45,14.5],[1.0,14.2],[1.05,10.0],[3.6,13.5],[1.65,7.2],[3.45,6.3],[3.5,9.7],[1.6,6.4],[3.35,7.5],[4.35,11.9],[2.6,6.8],[3.5,12.1],[1.35,9.9],[2.1,10.7],[3.15,13.7],[1.55,6.3],[2.9,12.8],[2.55,12.6],[1.85,10.7],[4.25,8.9],[1.0,6.4],[3.8,10.1],[2.05,12.1],[3.9,12.5],[4.65,10.2],[1.15,10.0],[2.8,11.5],[2.7,13.6],[1.25,9.3],[4.4,10.4],[3.85,7.5],[3.0,11.0],[2.85,14.3],[4.95,12.1],[4.5,6.2],[3.85,10.4],[2.35,10.5],[3.8,12.4],[1.2,8.2],[4.0,12.7],[3.15,7.2],[3.6,12.7],[4.0,7.3],[1.95,10.0],[4.9,7.3],[3.0,12.6],[2.6,7.8],[2.35,10.6],[4.4,14.4],[3.05,9.1],[2.55,14.3],[1.4,8.1],[3.25,9.0],[1.0,8.9],[2.45,14.7],[1.6,9.2],[4.5,13.6],[4.85,9.1],[3.0,5.9],[3.3,12.9],[1.1,13.3],[4.35,12.9],[2.35,14.6],[1.2,12.3],[1.2,14.9],[1.65,12.0],[2.9,10.1],[4.2,10.6],[1.85,5.5],[1.65,10.2],[3.4,5.6],[1.25,9.1],[1.35,10.8],[3.75,6.8],[4.3,11.1],[2.9,13.1],[2.6,10.6],[1.15,9.9],[3.65,8.4],[3.15,9.6],[4.9,13.4],[4.25,8.0],[2.25,14.6],[4.2,14.6],[4.6,8.7],[3.3,5.6],[3.7,6.3],[1.05,14.5],[4.7,12.8],[3.25,8.9],[3.75,12.3],[1.25,7.8],[2.55,9.9],[1.7,8.4],[2.6,8.7],[1.8,13.7],[3.55,15.0],[4.15,13.2],[2.5,11.2],[4.0,13.3],[2.55,10.5],[2.35,9.3],[3.3,7.0],[4.35,13.9],[4.0,14.7],[4.85,6.9],[2.35,6.2],[2.45,9.0],[2.15,14.3],[4.6,11.3],[4.15,11.0],[4.8,9.9],[2.05,13.8],[1.65,13.3],[2.5,8.0],[3.55,6.3],[3.05,8.4],[4.55,7.9],[4.25,12.4],[1.25,7.3],[1.1,7.1],[1.55,9.5],[2.75,7.0],[2.8,9.1],[2.95,14.1],[1.75,6.2],[3.15,6.7],[3.7,12.2],[2.7,2.0],[4.95,9.8],[4.7,7.9],[2.35,12.5],[2.85,10.8],[2.5,9.2],[2.0,12.9],[4.6,7.2],[3.55,9.6],[3.1,8.6],[1.45,8.8],[4.95,15.0],[4.0,7.4],[2.2,8.3],[3.65,7.5],[1.7,13.1],[1.8,12.3],[4.5,9.9],[2.9,6.0],[3.0,14.9],[4.35,13.0],[3.35,14.5],[4.1,10.4],[2.85,14.7],[4.9,10.6],[4.75,6.2],[4.9,10.4],[2.3,10.7],[3.85,10.3],[3.25,7.4],[2.9,10.0],[3.05,6.4],[1.55,11.4],[1.2,14.6],[1.05,6.3],[2.2,9.3],[1.15,7.2],[4.05,9.6],[3.0,9.6],[3.8,13.6],[4.9,11.2],[2.8,11.3],[4.5,5.2],[2.5,8.6],[2.05,14.2],[4.7,13.4],[2.35,7.0],[1.05,7.8],[2.65,12.7],[3.05,11.4],[1.6,14.1],[5.0,11.9],[4.0,5.7],[4.65,14.4],[2.15,14.7],[2.3,11.4],[1.55,6.5],[3.3,11.0],[2.4,9.6],[1.75,10.6],[2.55,13.4],[2.2,12.8],[1.25,13.4],[4.15,8.0],[2.1,10.6],[4.2,8.6],[4.5,10.5],[2.75,5.3],[3.9,12.7],[1.5,13.2],[1.75,8.8],[2.65,12.5],[1.55,13.2],[2.75,8.8],[3.7,8.2],[2.2,14.8],[4.5,13.0],[4.95,13.8],[3.25,10.6],[2.0,7.0],[3.15,7.8],[1.6,12.4],[3.55,9.7],[4.95,7.5],[3.5,8.4],[2.3,7.4],[4.05,5.6],[2.8,7.5],[2.5,7.2],[2.95,12.4],[2.35,11.5],[1.75,7.4],[3.3,13.1],[1.8,13.3],[4.6,12.5],[3.5,12.0],[3.7,7.1],[4.6,5.9],[3.0,6.8],[2.1,14.8],[4.15,13.4],[1.55,14.4],[4.55,12.4],[2.9,14.6],[2.5,11.3],[1.05,11.2],[1.25,7.9],[3.75,11.4],[4.85,8.3],[3.9,9.4],[3.45,14.1],[1.25,11.3],[2.65,14.5],[3.2,11.9],[2.4,11.1],[1.2,13.8],[4.1,8.4],[2.95,10.1],[2.1,12.1],[2.9,5.6],[1.7,14.8],[3.05,9.7],[2.85,13.0],[3.2,14.9],[1.65,9.5],[1.85,5.8],[4.35,7.0],[3.55,11.7],[2.65,10.1],[4.5,8.5],[1.7,14.3],[2.4,14.6],[1.25,14.6],[4.95,7.9],[1.35,13.4],[1.6,6.9],[1.55,8.1],[2.25,10.7],[3.05,14.7],[2.9,11.1],[3.95,6.6],[4.25,7.1],[1.0,11.3],[1.35,7.6],[4.65,9.2],[4.5,6.8],[4.6,6.5],[2.7,10.3],[1.5,8.2],[4.0,13.4],[3.55,7.4],[4.35,6.5],[2.35,13.8],[2.55,11.4],[4.1,14.8],[1.3,10.8],[1.95,14.2],[1.3,14.0],[2.3,11.8]],"offline":[[2.6,0.2],[1.75,1.4],[4.35,5.8],[4.25,0.2],[1.6,1.0],[4.45,0.4],[2.65,1.4],[1.45,1.8],[4.0,1.5],[4.15,0.2],[3.85,0.2],[2.8,0.9],[2.45,0.7],[2.7,0.9],[1.6,0.4],[3.1,1.5],[2.45,0.3],[4.05,1.0],[3.8,1.3],[1.65,0.7],[3.6,0.5],[1.05,1.3],[2.75,0.2],[3.0,0.8],[3.35,0.9],[4.9,1.4],[2.9,0.0],[4.15,0.5],[1.75,2.0],[3.2,1.2],[1.65,0.4],[1.75,0.8],[3.6,0.2],[3.2,0.3],[2.65,1.7],[3.8,1.7],[2.8,0.5],[4.55,0.4],[2.25,0.4],[2.1,1.8],[2.2,1.4],[1.45,0.6],[2.5,0.4],[4.65,0.5],[1.1,1.3],[1.9,1.2],[3.15,0.9],[2.6,1.7],[2.75,1.1],[2.25,1.3],[4.6,1.4],[5.0,1.8],[2.3,1.8],[1.75,0.6],[4.2,0.1],[1.85,1.7],[1.75,1.2],[2.35,13.9],[1.45,1.9],[3.5,1.0],[2.85,1.1],[2.75,1.4],[1.25,0.9],[1.9,1.9],[3.75,2.0],[4.8,1.3],[3.7,0.4],[1.95,1.0],[1.95,0.8],[1.4,0.2],[2.65,1.6],[3.2,1.8],[1.45,0.2],[2.1,1.1],[3.05,1.9],[1.75,1.0],[4.05,1.9],[1.25,1.2],[3.4,0.3],[4.9,1.5],[4.35,0.8],[3.85,0.4],[4.1,1.3],[1.0,1.1],[2.1,0.2],[3.05,0.4],[2.35,1.2],[1.95,1.4],[1.55,1.4],[1.15,1.2],[3.45,0.1],[3.5,0.8],[3.85,0.7],[2.4,0.2],[2.3,0.8],[4.85,0.3],[4.85,0.4],[4.5,0.4],[4.8,1.1],[1.75,1.3],[4.85,0.6],[3.8,0.6],[3.1,1.0],[1.1,0.0],[2.1,0.7],[2.2,0.0],[4.4,1.1],[4.25,0.1],[3.8,1.0],[4.25,1.1],[1.05,0.6],[2.05,0.6],[3.0,1.2],[2.85,0.7],[1.85,0.5],[3.75,0.2],[3.45,1.0],[2.75,1.2],[3.2,1.9],[4.4,1.3],[4.1,0.3],[1.1,1.2],[4.6,0.4],[3.2,1.1],[4.55,0.6],[4.3,1.4],[2.95,0.8],[2.8,0.3],[1.25,0.5],[2.8,0.2],[3.85,1.3],[3.5,0.2],[2.2,1.8],[4.2,1.1],[3.45,1.8],[2.5,0.0],[2.5,0.3],[3.85,1.1],[1.55,0.7],[2.75,1.6],[3.05,1.0],[2.95,1.1],[3.7,1.3],[1.35,1.1],[4.4,9.7],[1.7,0.4],[4.1,0.2],[4.6,1.1],[4.75,1.2],[2.15,0.2],[3.8,1.6],[1.85,0.8],[1.55,0.8],[2.3,0.2],[1.5,0.7],[2.75,0.5],[4.35,0.5],[1.4,1.9],[3.85,0.3],[4.85,14.2],[4.4,2.0],[3.25,1.5],[1.5,1.7],[1.1,0.1],[1.0,1.8],[1.3,1.4],[4.45,0.7],[1.35,1.7],[4.95,13.5],[2.3,0.9],[4.6,0.3],[4.2,0.7],[3.65,0.5],[1.2,1.0],[2.0,1.9],[3.4,1.2],[1.2,1.4],[4.2,1.3],[1.95,1.1],[2.1,1.6],[3.8,1.1],[1.05,0.8],[1.4,0.7],[1.6,0.9],[3.15,1.0],[1.95,0.6],[1.25,1.5],[1.15,0.3],[1.35,0.9],[3.15,0.0],[3.4,0.9],[1.15,1.6],[2.35,0.2],[2.2,0.3],[1.9,1.8],[2.0,1.3],[2.35,1.6],[4.0,0.7],[4.45,15.8],[4.4,1.8],[1.95,1.3],[2.05,1.6],[1.5,0.4],[1.05,1.7],[3.3,1.1],[3.0,1.4],[1.9,2.0],[4.85,0.7],[2.1,0.9],[1.7,1.3],[2.75,0.4],[2.3,1.7],[4.1,0.1],[2.8,16.0],[2.1,0.6],[2.0,1.1],[2.45,0.0],[2.15,0.5],[2.75,1.7],[5.0,0.6],[3.5,0.9],[1.6,1.5],[1.8,0.6],[4.55,1.3],[3.5,0.7],[2.85,1.0],[1.35,0.1],[4.6,1.8],[3.25,1.1],[3.55,0.8],[4.0,0.5],[1.65,1.1],[2.05,1.2],[4.65,0.2],[1.05,1.9],[4.6,0.9],[4.55,1.0],[1.9,1.4],[2.25,1.2],[1.1,0.8],[3.3,0.5],[2.9,1.2],[3.1,0.3],[2.1,0.4],[2.2,0.1],[4.25,2.0],[2.1,0.8],[2.45,0.1],[3.15,1.4],[2.75,0.1],[1.8,1.4],[2.7,0.4],[3.9,0.4],[3.0,0.2],[3.1,0.8],[2.95,0.4],[4.05,0.5],[2.6,0.8],[1.9,0.2],[4.75,0.7],[1.45,0.0],[1.5,1.4],[3.1,0.1],[3.6,0.1],[4.55,1.8],[2.15,2.0],[4.15,1.3],[3.9,1.4],[1.9,0.7],[3.9,1.8],[2.0,0.6],[2.15,1.8],[2.1,1.5],[1.4,0.1],[4.45,1.5],[3.15,0.4],[1.1,0.6],[3.55,0.4],[1.9,1.5],[4.95,10.1],[1.4,2.0],[4.8,1.0],[2.8,0.4],[2.05,0.3],[4.0,1.1],[4.05,0.2],[2.1,1.2],[1.85,1.3],[4.35,0.1],[2.85,1.4],[3.1,0.2],[4.25,0.3],[2.9,0.3],[4.85,0.0],[4.2,1.6],[1.6,1.9],[4.5,0.6],[1.9,1.6],[4.65,1.8],[3.65,1.6],[1.45,1.7],[1.15,0.6],[3.65,1.0],[3.6,0.3],[3.9,0.9],[4.45,1.6],[2.0,0.8],[1.55,1.8],[3.55,0.1],[1.8,1.8],[2.7,0.1],[4.85,0.1],[4.2,0.8],[2.6,1.5],[2.6,1.3],[2.45,0.2],[2.6,1.6],[1.05,0.2],[4.35,1.2],[4.5,1.7],[2.35,1.9],[4.9,1.8],[3.05,1.6],[3.7,1.8],[2.15,0.6],[2.75,1.8],[1.7,0.0],[3.6,0.9],[2.65,0.5],[2.75,0.3],[1.3,0.7],[1.25,0.2],[2.45,1.0],[1.65,1.7],[2.0,1.5],[3.45,0.0],[4.5,0.2],[3.9,0.8],[3.2,0.0],[1.4,0.3],[2.3,0.3],[4.9,8.0],[3.25,1.4],[2.55,1.7],[3.85,1.7],[4.05,0.8],[3.9,1.6],[1.35,2.0],[1.65,13.1],[4.05,0.3],[1.95,2.0],[4.25,1.3],[1.5,1.3],[3.75,10.8],[3.7,0.1],[2.15,0.9],[3.05,0.0],[3.9,1.2],[4.5,1.4],[4.0,13.1],[4.05,1.8],[3.65,1.9],[3.05,1.1],[4.4,0.4],[1.5,0.5],[1.15,0.2],[3.35,1.8],[3.15,0.7],[1.7,1.1],[2.25,1.8],[1.35,0.6],[2.65,0.1],[2.8,5.6],[4.55,1.4],[3.55,1.1],[3.15,1.5],[4.75,0.0],[3.75,1.5],[2.55,0.3],[3.1,0.9],[4.3,0.5],[2.7,0.5],[3.3,2.0],[2.95,1.4],[4.8,0.9],[4.1,0.4],[1.3,1.1],[3.75,1.9],[4.4,0.5],[2.6,0.9],[4.65,1.7],[1.45,1.1],[3.05,0.7],[2.05,1.0],[3.95,1.7],[4.95,1.7],[2.65,1.5],[4.4,0.1],[4.2,2.0],[4.75,1.7],[1.65,0.1],[4.65,1.3],[1.0,0.6],[3.85,0.6],[4.9,1.6],[4.9,0.9],[1.6,0.7],[1.65,0.5],[1.45,0.8],[3.7,0.8],[3.4,0.1],[3.05,0.2],[3.3,0.0],[3.0,1.7],[2.3,0.4],[3.9,1.5],[2.15,1.5],[1.7,1.2],[4.85,0.2],[2.35,0.9],[1.75,1.5],[3.95,1.9],[2.65,0.0],[4.25,1.4],[1.25,1.6],[1.35,1.3],[4.05,1.3],[3.65,2.0],[5.0,1.6],[3.35,1.5],[1.65,1.6],[2.85,0.4],[4.45,0.1],[1.05,0.7],[3.8,0.3],[1.4,1.5],[2.8,1.2],[4.4,1.4],[3.85,1.0],[1.4,1.4],[3.5,1.6],[3.1,1.9],[1.9,0.6],[1.0,0.5],[4.9,0.2],[1.85,1.5],[4.25,1.7],[2.85,1.6],[3.25,0.5],[4.15,0.3],[1.6,1.7],[1.05,1.1],[3.55,1.9],[4.05,1.7],[4.85,0.9],[2.45,0.8],[1.8,0.7],[2.3,0.7],[1.55,0.6],[2.25,10.6],[4.75,1.8],[4.9,0.4],[4.15,0.8],[4.0,0.6],[4.3,1.3],[2.8,6.7],[1.25,1.9],[2.85,0.6],[2.35,0.7],[1.15,0.4],[1.4,1.0],[3.45,1.3],[4.4,0.2],[2.25,1.1],[4.8,0.8],[3.55,1.2],[3.25,1.7],[2.95,14.2],[2.55,0.7],[1.9,0.5],[3.0,1.5],[3.7,1.0],[4.65,0.0],[2.4,1.0],[3.15,1.1],[3.75,1.6],[3.25,0.9],[3.7,0.9],[4.5,1.2],[1.5,0.6],[3.95,2.0],[2.35,1.7]],"warning":[[4.85,0.7],[3.45,1.0],[4.05,0.3],[1.2,10.7],[1.35,0.4],[4.25,0.8],[3.8,0.9],[3.25,1.0],[3.9,1.0],[2.8,1.2],[3.6,1.1],[4.35,1.1],[3.05,0.9],[3.4,1.1],[2.15,1.1],[4.6,1.0],[3.1,2.0],[3.1,0.1],[2.4,0.8],[2.5,0.7],[3.3,1.0],[1.75,0.4],[3.35,1.8],[1.55,10.5],[4.3,1.9],[4.35,1.2],[4.9,0.8],[1.6,0.2],[3.8,1.7],[4.75,1.0],[4.35,0.2],[1.3,1.9],[4.6,13.8],[1.05,0.0],[1.9,1.0],[4.2,1.5],[3.95,0.2],[2.25,1.4],[3.8,1.2],[2.6,1.6],[3.65,0.1],[4.05,1.4],[3.1,1.6],[1.7,2.0],[1.25,1.5],[4.6,1.2],[1.75,1.9],[1.2,0.8],[4.8,0.2],[2.25,1.9],[1.9,0.7],[1.15,0.2],[4.25,2.0],[3.85,0.4],[4.2,1.9],[3.4,0.3],[3.8,0.5],[3.0,0.3],[1.95,1.4],[4.75,1.3],[1.3,0.7],[2.3,1.6],[2.9,1.4],[2.75,1.3],[3.15,0.2],[1.65,0.3],[1.05,0.6],[2.9,1.2],[3.6,0.5],[1.9,0.8],[1.55,1.6],[4.6,0.9],[4.55,0.8],[1.05,1.8],[3.45,1.3],[4.5,0.7],[2.5,0.3],[3.2,0.8],[1.8,0.2],[3.95,0.3],[1.0,1.7],[2.3,9.6],[1.1,14.7],[2.75,1.9],[4.0,1.0],[3.85,0.8],[4.85,0.8],[1.05,1.1],[3.05,1.7],[4.55,1.6],[1.25,6.9],[4.7,1.1],[2.3,1.9],[4.8,1.4],[2.85,1.8],[2.8,0.8],[2.6,1.3],[3.9,1.3],[1.15,12.5],[4.6,0.6],[3.6,0.2],[1.5,0.4],[4.95,1.2],[4.1,0.8],[2.55,0.5],[2.25,0.4],[3.35,0.6],[3.0,1.8],[3.5,1.4],[1.45,0.7],[4.5,1.9],[2.35,0.7],[3.05,0.2],[1.4,1.4],[4.45,1.0],[4.15,0.6],[2.05,1.7],[1.1,0.0],[2.85,1.2],[4.85,0.2],[2.45,1.6],[3.25,0.1],[3.15,1.1],[3.45,1.9],[1.1,0.8],[4.75,0.2],[3.5,1.3],[1.05,1.9],[4.65,0.3],[1.85,0.4],[4.3,0.2],[4.6,0.2],[4.5,0.3],[2.45,0.7],[4.5,1.8],[2.2,1.5],[4.3,0.7],[1.65,0.6],[2.1,1.9],[3.45,1.6],[4.1,1.0],[2.55,1.5],[1.35,1.8],[1.05,1.3],[4.35,0.9],[2.0,1.4],[2.15,0.2],[2.5,1.2],[1.2,0.6],[1.4,1.0],[3.85,0.1],[3.5,1.2],[2.55,0.2],[4.55,1.3],[4.4,0.4],[3.35,0.0],[1.7,0.6],[4.35,0.7],[1.7,1.2],[4.25,0.2],[4.0,2.0],[1.95,1.5],[3.7,0.3],[3.7,2.0],[1.1,1.0],[3.2,0.4],[4.8,1.0],[2.15,0.0],[1.8,1.6],[2.2,1.8],[4.45,2.0],[4.35,0.6],[1.05,0.1],[3.75,1.3],[3.5,0.6],[4.0,0.4],[2.2,1.0],[3.6,1.5],[5.0,1.9],[1.8,1.4],[4.95,1.3],[2.3,1.0],[2.7,0.4],[3.15,1.8],[4.7,1.0],[3.05,0.0],[4.1,1.2],[3.9,1.6],[3.65,0.0],[2.25,0.8],[1.15,1.7],[2.35,1.5],[2.65,1.3],[3.3,0.9],[3.0,0.8],[1.45,0.8],[3.35,13.5],[2.35,0.0],[1.45,0.5],[4.65,1.6],[3.3,1.6],[2.1,1.2],[2.15,2.0],[4.85,0.5],[4.0,1.2],[4.15,0.2],[4.35,0.0],[4.2,2.0],[1.2,1.1],[1.7,1.6],[2.1,13.7],[4.45,0.6],[3.7,1.0],[3.95,0.1],[3.35,0.9],[3.25,0.0],[3.6,1.7],[4.5,1.0],[1.85,1.8],[1.0,0.5],[1.75,1.8],[4.3,1.0],[3.05,1.5],[4.3,0.8],[3.55,1.6],[1.1,1.6],[3.7,1.7],[3.35,1.5],[1.85,1.0],[4.95,0.2],[2.85,0.3],[3.05,0.3],[1.25,2.0],[4.05,1.3],[3.2,1.2],[2.95,1.6],[4.4,1.7],[2.1,0.5],[2.9,1.3],[1.25,0.7],[2.3,1.5],[2.45,1.4],[3.5,1.8],[3.8,0.3],[3.7,1.2],[4.3,1.1],[2.95,1.5],[3.65,0.5],[4.25,1.0],[3.1,0.3],[1.3,1.4],[4.8,1.5],[2.25,1.2],[3.05,1.2],[1.65,1.8],[1.45,0.9],[1.35,2.0],[1.25,0.8],[4.75,1.6],[2.65,1.2],[2.2,0.0],[1.95,0.6],[1.25,0.4],[4.15,0.7],[4.65,1.9],[3.35,0.4],[3.6,1.4],[1.75,1.5],[3.7,0.1],[4.1,0.0],[1.55,1.3],[1.9,1.3],[1.1,0.9],[4.9,1.4],[1.5,1.3],[2.15,1.3],[4.65,1.7],[3.55,0.8],[2.55,1.9],[2.3,1.4],[2.5,1.1],[4.85,0.9],[1.4,0.2],[2.75,1.7],[1.85,0.2],[4.75,1.8],[3.0,1.2],[4.45,1.9],[1.05,2.0],[3.3,1.2],[2.7,1.1],[4.85,1.7],[1.35,1.6],[2.65,0.6],[2.65,0.2],[3.25,0.8],[4.25,1.9],[2.05,0.1],[2.15,1.2],[3.3,1.1],[3.5,1.0],[3.5,0.2],[1.0,0.1],[3.8,1.4],[3.5,0.3],[3.95,1.8],[4.0,1.7],[1.35,1.0],[1.2,1.3],[2.8,0.2],[4.7,1.6],[4.75,0.9],[1.4,0.3],[1.75,0.5],[4.1,1.4],[4.15,0.4],[1.1,1.3],[3.75,0.2],[3.95,1.9],[3.55,0.3],[1.7,1.4],[2.15,0.1],[2.45,0.3],[4.75,2.0],[4.1,0.2],[2.3,0.5],[2.55,1.8],[3.9,0.4],[2.4,0.5],[4.6,1.4],[4.6,8.6],[3.4,1.8],[1.2,1.6],[3.3,0.2],[2.1,0.2],[4.8,1.1],[2.1,1.1],[3.95,0.0],[1.5,0.9],[3.4,0.1],[1.2,1.5],[1.85,1.4],[3.55,0.4],[4.1,0.1],[2.9,0.5],[4.8,0.6],[2.15,0.4],[3.9,1.4],[3.85,1.1],[2.7,9.5],[4.55,1.9],[3.5,2.0],[1.6,0.0],[2.5,1.0],[3.85,1.6],[2.7,0.3],[2.05,1.8],[3.3,1.9],[2.25,1.3],[4.4,1.9],[2.65,1.8],[4.25,0.4],[4.2,1.6],[1.75,1.7],[4.15,1.0],[1.8,1.1],[4.35,1.4],[3.35,0.2],[2.6,1.2],[2.45,1.7],[3.2,1.0],[1.35,0.0],[1.8,1.0],[3.05,0.8],[2.6,0.6],[2.75,0.7],[4.85,1.0],[1.5,0.7],[1.55,1.5],[1.35,0.8],[3.65,1.3],[4.05,0.8],[3.25,1.3],[2.35,0.9],[2.3,0.7],[1.25,0.5],[4.6,1.7],[2.8,1.8],[1.35,0.5],[4.9,0.7],[2.9,1.9],[3.85,0.3],[1.3,0.0],[1.2,0.2],[4.0,0.5],[1.0,10.5],[4.8,0.9],[2.4,1.5],[4.4,1.0],[1.95,1.0],[4.65,0.8],[3.75,0.9],[4.65,1.8],[4.1,0.7],[3.45,0.3],[4.3,1.4],[3.0,0.6],[1.0,1.4],[4.2,1.1],[2.35,0.8],[4.95,1.0],[2.55,1.6],[3.3,0.6],[3.55,0.5],[3.85,1.3],[1.15,1.3],[3.9,1.8],[1.15,0.9],[2.45,1.0],[5.0,13.3],[4.55,0.2],[3.45,0.4],[4.2,1.2],[1.95,0.1],[2.7,1.8],[3.0,0.4],[3.7,0.5],[1.55,0.5],[4.15,0.3],[1.65,1.7],[4.5,1.3],[3.85,1.7],[1.55,0.7],[3.85,0.5],[4.35,1.6],[1.45,0.0],[3.4,0.2],[2.75,1.5],[3.6,0.7],[4.85,1.6],[1.35,0.3],[4.55,1.0],[1.8,1.2],[3.25,1.9],[4.4,0.6],[1.5,0.0],[3.25,1.6],[1.25,1.3],[1.25,0.1],[1.6,1.5],[1.75,0.9],[4.2,0.7],[1.95,1.8],[2.85,1.9],[3.55,1.0],[2.4,1.7],[4.2,0.2],[1.75,1.3],[1.85,1.6],[3.25,2.0],[2.65,0.3],[2.7,0.7],[4.75,1.9],[2.6,1.5],[4.05,14.8],[4.05,1.6],[1.75,1.1],[3.2,0.2],[2.55,1.1],[1.55,0.2],[2.65,1.1],[1.75,1.2],[1.4,1.9],[4.9,1.7],[3.9,0.0],[3.55,1.4],[4.55,0.7],[2.45,1.2],[1.75,0.6],[3.95,9.6],[1.1,1.2],[1.3,0.8],[3.55,0.9],[3.65,2.0],[3.75,0.8],[3.0,1.5],[1.35,0.2],[2.45,0.2],[1.4,0.7],[1.85,0.5],[1.75,0.1],[3.6,0.6],[1.55,0.9],[1.65,10.1],[1.65,0.0],[3.75,0.6],[3.1,1.5],[1.5,0.3],[4.25,1.2],[4.8,0.8],[2.9,0.2],[2.4,1.2],[1.6,1.8],[2.35,0.4],[4.35,1.0],[3.15,1.4],[1.35,0.6],[2.75,0.1],[2.7,0.5],[1.55,1.0],[3.2,0.9],[1.95,0.8],[3.65,0.4],[1.7,0.4],[1.05,0.4],[2.9,0.3],[2.15,1.5],[1.85,0.0],[4.55,1.8],[1.8,0.7],[3.8,1.6],[2.05,1.3],[4.0,0.2],[2.7,2.0],[2.35,1.8],[1.05,0.5],[3.15,0.4],[2.1,0.0],[2.25,1.8],[1.6,1.9],[2.0,1.9],[1.9,1.1],[3.65,1.0],[3.15,0.0],[4.1,1.3],[4.2,1.8],[2.5,0.1],[1.5,0.8],[4.9,1.6],[3.0,0.5],[2.8,1.6],[2.45,0.9],[3.8,1.8],[4.1,1.6],[1.2,0.7],[3.55,0.6],[3.65,1.1],[2.55,0.6],[1.15,1.5],[3.8,1.9],[1.55,0.6],[2.5,0.2],[2.0,0.3],[3.1,1.8],[3.1,1.3],[2.45,0.5],[3.0,0.7],[3.9,0.8],[3.15,8.3],[3.75,1.2],[2.65,1.6],[1.5,0.6],[5.0,1.2]]};
+const ZHS={normal:'normal 正常',warning:'warning 預警',error:'error 錯誤',offline:'offline 離線'};
+function drawScatter(){
+  const order=['normal','offline','warning','error'];
+  const leg=document.getElementById('sc-legend'); leg.textContent='';
+  order.forEach(st=>{const l=document.createElement('span');const i=document.createElement('i');i.style.background=css('--'+st);l.append(i,ZHS[st]);leg.appendChild(l);});
+  const ds=order.map(st=>({label:st,data:SC[st].map(p=>({x:p[0],y:p[1]})),backgroundColor:css('--'+st),pointRadius:st==='error'?3:2.2,pointHoverRadius:5,borderWidth:0}));
+  ds.push({type:'line',label:'15',data:[{x:0.8,y:15},{x:5.2,y:15}],borderColor:css('--error'),borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false});
+  make('c-scatter',{type:'scatter',data:{datasets:ds},
+    options:baseOpts({plugins:{...baseOpts().plugins,tooltip:{...baseOpts().plugins.tooltip,filter:c=>c.dataset.label!=='15',callbacks:{label:c=>c.dataset.label+'｜壓力 '+c.raw.x.toFixed(2)+'、震動 '+c.raw.y.toFixed(1)}}},
+      scales:{x:{...baseOpts().scales.x,type:'linear',min:0.8,max:5.2,title:ax('壓力（pressure）')},y:{...baseOpts().scales.y,max:18,title:ax('震動（vibration_level）')}}})});
+}
+/* simulators */
+const tR=document.getElementById('t-range'), vR=document.getElementById('v-range'), vDev=document.getElementById('v-dev');
+const MOTOR_N=D.types.motor.n;
+function mixBar(el,leg,st,n){
+  el.textContent=''; leg.textContent='';
+  ST.forEach(s=>{ if(!st[s]) return; const sp=document.createElement('span'); sp.style.width=(st[s]/n*100)+'%'; sp.style.background=css('--'+s); sp.title=ZH[s]+' '+st[s]; el.appendChild(sp);
+    const l=document.createElement('span'); const i=document.createElement('i'); i.style.background=css('--'+s); l.append(i,ZH[s]+' '+fmt(st[s])); leg.appendChild(l);});
+}
+function updateTemp(){
+  const T=+tR.value; document.getElementById('t-out').textContent=T+'°C';
+  const r=tempCount(T,999);
+  document.getElementById('t-n').textContent=fmt(r.n);
+  document.getElementById('t-share').textContent=pct(r.n,MOTOR_N,2);
+  mixBar(document.getElementById('t-mix'),document.getElementById('t-legend'),r.st,r.n||1);
+  const below=tempCount(T-5,T).n/5, above=tempCount(T,T+5).n/5;
+  const h=document.getElementById('t-hint');
+  if(T===80) h.textContent='80°C 是分布的斷點：門檻前每 1°C 約 400 筆，門檻後驟降到約 20 筆。被標記的紀錄裡，所有 warning 都在這一段。';
+  else if(T<80) h.textContent='門檻低於 80°C 時，會把大量屬於正常運轉區間的紀錄也標成過熱（目前 '+fmt(r.n)+' 筆，其中 normal 占 '+pct(r.st.normal,r.n)+'），巡檢人力會被稀釋。';
+  else if(T>=100) h.textContent='門檻到 100°C 以上時，被標記的紀錄全部都是 error，已經是故障而不是預警，來不及提早處理。';
+  else h.textContent='門檻提高後，標記數量減少，但會漏掉 80°C 起就開始出現的 warning（預警訊號）。';
+  const labels=[],vals=[],cols=[];
+  for(let t=30;t<110;t++){labels.push(t);const c=TB[t]?sum(TB[t]):0;vals.push(c);cols.push(t>=T?css('--hot'):css('--normal'));}
+  if(charts['c-tsim']){const ch=charts['c-tsim']; ch.data.datasets[0].backgroundColor=cols; ch.update('none'); return;}
+  make('c-tsim',{type:'bar',data:{labels,datasets:[{data:vals,backgroundColor:cols,categoryPercentage:1,barPercentage:.92}]},
+    options:baseOpts({plugins:{...baseOpts().plugins,tooltip:{...baseOpts().plugins.tooltip,callbacks:{title:c=>c[0].label+'–'+(+c[0].label+1)+'°C',label:c=>fmt(c.raw)+' 筆'}}},
+      scales:{...baseOpts().scales,x:{...baseOpts().scales.x,ticks:{...baseOpts().scales.x.ticks,autoSkip:true,maxTicksLimit:9}},y:{...baseOpts().scales.y,title:{display:true,text:'紀錄筆數（每 1°C）',color:css('--muted')}}}})});
+}
+function updateVib(){
+  const V=+vR.value, dev=vDev.value; document.getElementById('v-out').textContent=V;
+  const a=vibAgg(dev,V,999), b=vibAgg(dev,0,V);
+  document.getElementById('v-n').textContent=fmt(a.n);
+  document.getElementById('v-rate').textContent=pct(a.st.error,a.n);
+  document.getElementById('v-normal').textContent=fmt(a.st.normal);
+  document.getElementById('v-below').textContent=pct(b.st.error,b.n);
+  const h=document.getElementById('v-hint');
+  const between=vibAgg(dev,14,15);
+  if(V===15) h.textContent=(dev==='pressure_gauge'?'震動 14–15 之間有 '+between.n+' 筆、'+between.st.error+' 筆 error；一到 15 以上，error 比例直接跳到 '+pct(a.st.error,a.n)+'，而且沒有任何 normal。':'馬達也一樣：震動 ≥ 15 的 '+fmt(a.n)+' 筆中有 '+fmt(a.st.error)+' 筆 error，占馬達全部 error 的 '+pct(a.st.error,D.types.motor.status.error)+'。');
+  else if(V<15) h.textContent='門檻低於 15 時，normal 紀錄也會被一起標記（目前 '+fmt(a.st.normal)+' 筆），error 比例降到 '+pct(a.st.error,a.n)+'，巡檢命中率下降。';
+  else h.textContent='門檻高於 15 時，error 比例差不多，但會漏掉 15 到 '+V+' 之間的 error 紀錄（'+fmt(vibAgg(dev,15,V).st.error)+' 筆）。';
+  // cumulative error rate curve
+  const xs=[],ys=[],pc=[];
+  for(let v=2;v<=20;v+=0.5){const r=vibAgg(dev,v,999); xs.push(v); ys.push(r.n?r.st.error/r.n*100:null); pc.push(v===V?6:0);}
+  const cfgData={labels:xs,datasets:[{data:ys,borderColor:css('--error'),backgroundColor:css('--error'),pointRadius:pc,pointHoverRadius:5,tension:.15,spanGaps:true,fill:false}]};
+  if(charts['c-vsim']&&charts['c-vsim']._dev===dev){const ch=charts['c-vsim']; ch.data.datasets[0].pointRadius=pc; ch.update('none'); return;}
+  const ch=make('c-vsim',{type:'line',data:cfgData,options:baseOpts({plugins:{...baseOpts().plugins,tooltip:{...baseOpts().plugins.tooltip,callbacks:{title:c=>'震動 ≥ '+c[0].label,label:c=>'error 比例 '+(c.raw==null?'—':c.raw.toFixed(1)+'%')}}},
+    scales:{...baseOpts().scales,x:{...baseOpts().scales.x,title:{display:true,text:'震動門檻 V',color:css('--muted')},ticks:{...baseOpts().scales.x.ticks,autoSkip:true,maxTicksLimit:10}},y:{...baseOpts().scales.y,max:100,title:{display:true,text:'達到門檻的紀錄中 error 比例',color:css('--muted')},ticks:{...baseOpts().scales.y.ticks,callback:v=>v+'%'}}}})});
+  ch._dev=dev;
+}
+
+/* wiring */
+function pressGroup(groupId,attr,onPick){
+  document.getElementById(groupId).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+    document.querySelectorAll('#'+groupId+' button').forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false')); onPick(b.dataset[attr]);});
+}
+pressGroup('rate-chips','k',k=>{rateKey=k;drawRate();});
+pressGroup('dev-chips','t',t=>{devType=t;drawDev();});
+pressGroup('pw-chips','t',t=>{pwType=t;drawPw();});
+tR.addEventListener('input',updateTemp); vR.addEventListener('input',updateVib); vDev.addEventListener('change',updateVib);
+document.querySelectorAll('[data-tp]').forEach(b=>b.addEventListener('click',()=>{tR.value=b.dataset.tp;updateTemp();}));
+document.querySelectorAll('[data-vp]').forEach(b=>b.addEventListener('click',()=>{vR.value=b.dataset.vp;updateVib();}));
+
+const tabs=[...document.querySelectorAll('.tab')];
+const drawn={};
+function showTab(tab){
+  tabs.forEach(t=>{const on=t===tab;t.setAttribute('aria-selected',on);document.getElementById(t.getAttribute('aria-controls')).hidden=!on;});
+  const id=tab.id;
+  if(id==='tab-anomaly'){drawStatus();drawRate();drawDev();}
+  if(id==='tab-energy'){drawShare();drawPw();drawHour();}
+  if(id==='tab-sensor'){drawTemp5();drawOH();drawVibGrp();drawScatter();}
+}
+tabs.forEach(t=>t.addEventListener('click',()=>showTab(t)));
+document.querySelector('.tabs').addEventListener('keydown',e=>{
+  const i=tabs.indexOf(document.activeElement); if(i<0) return;
+  if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();const n=tabs[(i+(e.key==='ArrowRight'?1:tabs.length-1))%tabs.length];n.focus();showTab(n);}
+});
+
+function renderAll(){
+  drawComp();
+  Object.keys(charts).forEach(k=>{charts[k].destroy();delete charts[k];});
+  showTab(tabs.find(t=>t.getAttribute('aria-selected')==='true'));
+  updateTemp(); updateVib();
+}
+if(window.Chart){ Chart.defaults.font.family=css('--f-body'); renderAll(); }
+else { drawComp(); }
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>window.Chart&&renderAll());
+new MutationObserver(()=>window.Chart&&renderAll()).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+</script>
