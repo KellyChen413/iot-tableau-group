@@ -11,7 +11,8 @@ Team member:Mars、Tim、Kelly
 
 - 報告與說明（HackMD）：https://hackmd.io/@Yihsuanchen1/SJljDOTTfg/https%3A%2F%2Fhackmd.io%2FCkvrlWlvTF2aL6aYtM8VPw%2Fpublish
 - 簡報（Gamma）：https://gamma.app/docs/IoT-29--v4mdquwjqyodgdx
-- 一頁式互動網頁:https://claude.ai/artifact/BytQ3q7obG6KAB6MapnCkN
+- 一頁式互動網頁（報告主畫面）：https://claude.ai/artifact/BytQ3q7obG6KAB6MapnCkN
+- 網頁原始檔：[`docs/index.html`](docs/index.html)（啟用 GitHub Pages 後可直接當網址使用）
 
 ## 資料來源
 
@@ -72,9 +73,9 @@ Team member:Mars、Tim、Kelly
 
 ## 報告分工
 
-每人只上台一次，中途不換人。簡報（Gamma）共 11 頁，總長約 11 分 30 秒；逐字稿見 [`彙整版/簡報逐字稿_V3.md`](彙整版/簡報逐字稿_V3.md)。
+每人只上台一次，中途不換人。報告以**互動網頁**進行，Gamma 簡報（12 頁）為備用，總長約 12 分鐘；逐字稿見 [`彙整版/簡報逐字稿_V4.md`](彙整版/簡報逐字稿_V4.md)。
 
-逐字稿版本紀錄：V1 初版（每人只上台一次）→ V2 資料整理段加入稽核說明 → **V3** 稽核說明改為兩次獨立稽核（61 項、76 項）。
+逐字稿版本紀錄：V1 初版（每人只上台一次）→ V2 資料整理段加入稽核說明 → V3 稽核說明改為兩次獨立稽核（61 項、76 項）→ **V4** 改以互動網頁報告，附 Gamma 備用頁碼與圖表設計說明。
 
 ![報告分工圖](彙整版/報告分工圖_V1.png)
 
