@@ -375,10 +375,10 @@ footer{border-top:1px solid var(--rule);padding-block:28px 40px;font-size:.85rem
           <div class="slider-row"><input type="range" id="v-range" min="2" max="20" step="0.5" value="15"><output id="v-out" for="v-range">15</output></div>
           <div class="presets"><button class="chip" data-vp="10">10</button><button class="chip" data-vp="14">14</button><button class="chip" data-vp="15">15（採用）</button><button class="chip" data-vp="17">17</button></div>
           <div class="readout">
-            <div><div class="v" id="v-n">130</div><div class="k">筆達到門檻</div></div>
-            <div><div class="v" id="v-rate">98.5%</div><div class="k">其中為 error</div></div>
-            <div><div class="v" id="v-normal">0</div><div class="k">其中為 normal</div></div>
-            <div><div class="v" id="v-below">0.9%</div><div class="k">門檻以下的 error 比例</div></div>
+            <div><div class="v" id="v-n">130</div><div class="k">筆達到門檻</div><div class="k2" id="v-n-k2"></div></div>
+            <div><div class="v" id="v-rate">98.5%</div><div class="k">其中為 error</div><div class="k2" id="v-rate-k2"></div></div>
+            <div><div class="v" id="v-normal">0</div><div class="k">其中為 normal</div><div class="k2" id="v-normal-k2"></div></div>
+            <div><div class="v" id="v-below">0.9%</div><div class="k">門檻以下的 error 比例</div><div class="k2" id="v-below-k2"></div></div>
           </div>
           <p class="hint" id="v-hint"></p>
         </div>
@@ -619,6 +619,11 @@ function updateVib(){
   document.getElementById('v-rate').textContent=pct(a.st.error,a.n);
   document.getElementById('v-normal').textContent=fmt(a.st.normal);
   document.getElementById('v-below').textContent=pct(b.st.error,b.n);
+  const nm=dev==='motor'?'馬達':'壓力計';
+  document.getElementById('v-n-k2').textContent=nm+'全部 '+fmt(a.n+b.n)+' 筆中，震動 ≥ '+V+' 的筆數';
+  document.getElementById('v-rate-k2').textContent='＝'+fmt(a.st.error)+' 筆 error ÷ '+fmt(a.n)+' 筆';
+  document.getElementById('v-normal-k2').textContent='這 '+fmt(a.n)+' 筆中 status 是 normal 的筆數';
+  document.getElementById('v-below-k2').textContent='＝'+fmt(b.st.error)+' 筆 error ÷ 震動 < '+V+' 的 '+fmt(b.n)+' 筆';
   const h=document.getElementById('v-hint');
   const between=vibAgg(dev,14,15);
   if(V===15) h.textContent=(dev==='pressure_gauge'?'震動 14–15 之間有 '+between.n+' 筆、'+between.st.error+' 筆 error；一到 15 以上，error 比例直接跳到 '+pct(a.st.error,a.n)+'，而且沒有任何 normal。':'馬達也一樣：震動 ≥ 15 的 '+fmt(a.n)+' 筆中有 '+fmt(a.st.error)+' 筆 error，占馬達全部 error 的 '+pct(a.st.error,D.types.motor.status.error)+'。');
