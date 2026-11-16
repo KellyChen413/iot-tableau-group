@@ -12,6 +12,7 @@ Team member:Mars、Tim、Kelly
 - 報告與說明（HackMD）：https://hackmd.io/@Yihsuanchen1/SJljDOTTfg/https%3A%2F%2Fhackmd.io%2FCkvrlWlvTF2aL6aYtM8VPw%2Fpublish
 - 簡報（Gamma）：https://gamma.app/docs/IoT-29--v4mdquwjqyodgdx
 - 一頁式互動網頁（報告主畫面）：https://claude.ai/artifact/BytQ3q7obG6KAB6MapnCkN
+- GitHub Pages:https://kellychen413.github.io/iot-tableau-group/
 - 網頁原始檔：[`docs/index.html`](docs/index.html)（啟用 GitHub Pages 後可直接當網址使用）
 
 ## 資料來源
