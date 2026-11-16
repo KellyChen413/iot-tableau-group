@@ -382,7 +382,21 @@ footer{border-top:1px solid var(--rule);padding-block:28px 40px;font-size:.85rem
           </div>
           <p class="hint" id="v-hint"></p>
         </div>
-        <div><div class="chart tall"><canvas id="c-vsim" aria-label="震動門檻與 error 比例"></canvas></div></div>
+        <div><div class="chart tall"><canvas id="c-vsim" aria-label="震動門檻與 error 比例"></canvas></div>
+          <div class="guide" style="border-left-color:var(--error)"><p class="gt">怎麼看這張圖</p><ul>
+            <li><b>橫軸＝我們設的門檻</b>；<b>縱軸＝震動 ≥ 門檻的紀錄中，有幾成是 error</b>。線越高＝警報越準。</li>
+          </ul>
+          <ul class="vg" data-dev="pressure_gauge">
+            <li><b>壓力計・門檻 14</b>：抓到 225 筆，只有 56.9% 是 error，還有 91 筆 normal → 警報兩次就有一次白跑。</li>
+            <li><b>壓力計・門檻 15</b>：抓到 130 筆，<b>98.5% 是 error、normal 0 筆</b> → 線一下子跳上去，15 就是分界點。</li>
+            <li><b>17 以後點不見</b>：壓力計的震動最高只到 16 多，17 以上沒有紀錄可算，不是全壞了。</li>
+          </ul>
+          <ul class="vg" data-dev="motor" hidden>
+            <li><b>馬達・門檻 14</b>：抓到 395 筆，84.1% 是 error，還有 55 筆 normal。</li>
+            <li><b>馬達・門檻 15</b>：抓到 338 筆，<b>98.2% 是 error、normal 0 筆</b> → 跟壓力計一樣在 15 分界。</li>
+            <li><b>17 以上</b>：還有 207 筆，98.6% 是 error，所以線一直延續在接近 100%。</li>
+            <li>結論：<b>15 是壓力計和馬達共同的故障訊號</b>。</li>
+          </ul></div></div>
       </div>
     </div>
   </div>
@@ -629,6 +643,8 @@ pressGroup('rate-chips','k',k=>{rateKey=k;drawRate();});
 pressGroup('dev-chips','t',t=>{devType=t;drawDev();});
 pressGroup('pw-chips','t',t=>{pwType=t;drawPw();});
 tR.addEventListener('input',updateTemp); vR.addEventListener('input',updateVib); vDev.addEventListener('change',updateVib);
+function syncVG(){document.querySelectorAll('.vg').forEach(u=>{u.hidden=u.dataset.dev!==vDev.value;});}
+vDev.addEventListener('change',syncVG); syncVG();
 document.querySelectorAll('[data-tp]').forEach(b=>b.addEventListener('click',()=>{tR.value=b.dataset.tp;updateTemp();}));
 document.querySelectorAll('[data-vp]').forEach(b=>b.addEventListener('click',()=>{vR.value=b.dataset.vp;updateVib();}));
 
